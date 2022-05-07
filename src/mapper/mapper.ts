@@ -10,15 +10,20 @@ export abstract class Mapper {
     protected pRGBanks: Uint8Array[0] = 0;
     protected cHRBanks: Uint8Array[0] = 0;
 
-    constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {}
+    constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {
+        this.pRGBanks = prgBanks;
+        this.cHRBanks = chrBanks;
+        this.reset();
+    }
 
     abstract cpuMapRead(address: Uint16Array[0], mappedAddress: Uint32Array[0], data: Uint8Array[0]): boolean;
     abstract cpuMapWrite(address: Uint16Array[0], mappedAddress: Uint32Array[0], data: Uint8Array[0]): boolean;
     abstract ppuMapRead(address: Uint16Array[0], mappedAddress: Uint32Array[0]): boolean;
     abstract ppuMapWrite(address: Uint16Array[0], mappedAddress: Uint32Array[0]): boolean;
-    abstract reset(): void;
-    abstract mirror(): MIRROR;
-    abstract irqState(): boolean;
-    abstract irqClear(): void;
-    abstract scanline(): void;
+    
+    reset(): void {}
+    mirror(): MIRROR { return MIRROR.HARDWARE; }
+    irqState(): boolean { return false; }
+    irqClear(): void {}
+    scanline(): void {}
 }

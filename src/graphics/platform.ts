@@ -1,8 +1,8 @@
 import { RCode } from '.';
 import { GameEngine } from './engine';
-import { Renderer } from './render';
+import { Renderer, VI2D, WebGPURenderer } from './render';
 
-export abstract class Platform {
+export class Platform {
     applicationStartUp(): RCode { return RCode.FAIL; }
     applicationCleanUp(): RCode { return RCode.FAIL; }
     threadStartUp(): RCode { return RCode.FAIL; }
@@ -16,6 +16,6 @@ export abstract class Platform {
     static gameEngine: GameEngine;
 }
 
-export const renderer: Renderer = undefined;
-export const platform: Platform = undefined;
-export const mapKeys: Record<number, Uint8Array[0]> = undefined;
+export const renderer: Renderer = new WebGPURenderer();
+export const platform: Platform = new Platform();
+export const mapKeys: Record<number, Uint8Array[0]> = <Record<number, Uint8Array[0]>><unknown>undefined;

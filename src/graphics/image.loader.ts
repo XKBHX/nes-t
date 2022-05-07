@@ -1,4 +1,4 @@
-import { RCode } from '.';
+import { RCode } from './index';
 import { ResourcePack } from './resource';
 import { Sprite } from './sprite';
 

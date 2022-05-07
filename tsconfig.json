@@ -4,11 +4,17 @@
     "noImplicitAny": true,
     "module": "es6",
     "target": "es5",
-    "importHelpers": true,
+    "moduleResolution": "node",
+    //"importHelpers": true,
+    "outDir": "./dist/",
+    "sourceMap": true,
+    "inlineSourceMap": false,
     "forceConsistentCasingInFileNames": true,
+    "downlevelIteration": true,
     "strict": true,
     "esModuleInterop": true,
-    "allowJs": true
+    "allowJs": true,
+    "typeRoots": [ "node_modules/@webgpu/types", "node_modules/@types" ]
   },
   "files": ["src/index.ts"]
 }

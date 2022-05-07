@@ -58,6 +58,8 @@ export class Pixel {
     }
 }
 
+export enum PixelMode { NORMAL, MASK, ALPHA, CUSTOM }
+
 export const GREY = new Pixel(192, 192, 192), DARK_GREY = new Pixel(128, 128, 128), VERY_DARK_GREY = new Pixel(64, 64, 64),
 RED = new Pixel(255, 0, 0), DARK_RED = new Pixel(128, 0, 0), VERY_DARK_RED = new Pixel(64, 0, 0),
 YELLOW = new Pixel(255, 255, 0), DARK_YELLOW = new Pixel(128, 128, 0), VERY_DARK_YELLOW = new Pixel(64, 64, 0),

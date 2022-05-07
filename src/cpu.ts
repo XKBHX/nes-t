@@ -1,11 +1,11 @@
-import { Bus } from "./bus";
+import { Bus } from './bus';
 
 export class Cpu {
-  private temp: Uint16Array[0] = 0x0000;
+  public temp: Uint16Array[0] = 0x0000;
   public addressAbsolute: Uint16Array[0] = 0x0000;
   public addressRelative: Uint16Array[0] = 0x00;
-  private opcode: Uint8Array[0] = 0x00;
-  private cycles: Uint8Array[0] = 0;
+  public opcode: Uint8Array[0] = 0x00;
+  public cycles: Uint8Array[0] = 0;
   private clockCount: Uint32Array[0] = 0;
   private bus: Bus;
   private lookup: INSTRUCTION[];
@@ -20,11 +20,11 @@ export class Cpu {
 
   constructor() {}
 
-  private getFlag(flag: CPU_FLAG): Uint8Array[0] {
+  public getFlag(flag: CPU_FLAG): Uint8Array[0] {
     return (this.status & flag) > 0 ? 1 : 0;
   }
 
-  private setFlag(flag: CPU_FLAG, v: boolean): void {
+  public setFlag(flag: CPU_FLAG, v: boolean): void {
     if (v) this.status |= flag;
     else this.status &= ~flag;
   }
@@ -33,11 +33,11 @@ export class Cpu {
     return this.bus.cpuRead(address, false);
   }
 
-  private write(address: Uint16Array[0], data: Uint8Array[0]): void {
+  public write(address: Uint16Array[0], data: Uint8Array[0]): void {
     this.bus.cpuWrite(address, data);
   }
 
-  private fetch(): Uint8Array[0] {
+  public fetch(): Uint8Array[0] {
     if (!(lookup[this.opcode].addressMode === IMP))
         this.fetched = this.read(this.addressAbsolute);
     return this.fetched;
@@ -90,7 +90,7 @@ export class Cpu {
   nmi(): void {}
 
   clock(): void {
-    if (this.cycles == 0) {
+    if (this.cycles === 0) {
       this.opcode = this.read(this.pc);
       this.setFlag(CPU_FLAG.U, true);
       this.pc++;
@@ -107,11 +107,103 @@ export class Cpu {
     this.cycles--;
   }
 
-  complete(): boolean {}
+  complete(): boolean {
+      return this.cycles === 0;
+  }
+
   connectBus(bus: Bus): void {
     this.bus = bus;
   }
-  disassemble(start: Uint16Array[0], stop: Uint16Array[0]): InstructionMap {}
+
+  disassemble(start: Uint16Array[0], stop: Uint16Array[0]): InstructionMap {
+    let addr: number = start;
+	let value = 0x00, lo = 0x00, hi = 0x00;
+	const mapLines: Record<Uint16Array[0], string> = {};
+	let lineAddr: Uint16Array[0] = 0;
+
+	const hex = (n: Uint32Array[0], d: Uint8Array[0]): string => {
+		const s: string[] = [];
+		for (let i: number = d - 1; i >= 0; i--, n >>= 4)
+			s[i] = '0123456789ABCDEF'[n & 0xF];
+		return s.join('');
+	};
+
+	while (addr <= stop) {
+		lineAddr = addr;
+
+		let inst = `$${hex(addr, 4)}: `;
+
+		const opcode = this.bus.cpuRead(addr, true); 
+        addr++;
+		inst += `${lookup[opcode].name} `;
+
+		const addrmode = lookup[opcode].addressMode;
+        if (addrmode === IMP) {
+			inst += ' {IMP}';
+		} else if (addrmode === IMM) {
+			value = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '#$' + hex(value, 2) + ' {IMM}';
+		} else if (addrmode === ZP0) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = 0x00;												
+			inst += '$' + hex(lo, 2) + ' {ZP0}';
+		} else if (addrmode === ZPX) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = 0x00;														
+			inst += '$' + hex(lo, 2) + ', X {ZPX}';
+		} else if (addrmode === ZPY) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = 0x00;														
+			inst += '$' + hex(lo, 2) + ', Y {ZPY}';
+		} else if (addrmode === IZX) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = 0x00;								
+			inst += '($' + hex(lo, 2) + ', X) {IZX}';
+		} else if (addrmode === IZY) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = 0x00;								
+			inst += '($' + hex(lo, 2) + '), Y {IZY}';
+		} else if (addrmode === ABS) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '$' + hex((hi << 8) | lo, 4) + ' {ABS}';
+		} else if (addrmode === ABX) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '$' + hex((hi << 8) | lo, 4) + ', X {ABX}';
+		} else if (addrmode === ABY) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '$' + hex((hi << 8) | lo, 4) + ', Y {ABY}';
+		} else if (addrmode === IND) {
+			lo = this.bus.cpuRead(addr, true);
+            addr++;
+			hi = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '($' + hex((hi << 8) | lo, 4) + ') {IND}';
+		} else if (addrmode === REL) {
+			value = this.bus.cpuRead(addr, true);
+            addr++;
+			inst += '$' + hex(value, 2) + ' [$' + hex(addr + value, 4) + '] {REL}';
+		}
+
+		mapLines[lineAddr] = inst;
+	}
+
+	return mapLines;
+  }
 }
 
 export enum CPU_FLAG {
@@ -235,63 +327,509 @@ const IZY = (c: Cpu): Uint8Array[0] => {
 		return 0;
 }
 
-// Opcodes (private)
-const ADC = (): Uint8Array[0] {}
-const AND = (): Uint8Array[0] {}
-const ASL = (): Uint8Array[0] {}
-const BCC = (): Uint8Array[0] {}
-const BCS = (): Uint8Array[0] {}
-const BEQ = (): Uint8Array[0] {}
-const BIT = (): Uint8Array[0] {}
-const BMI = (): Uint8Array[0] {}
-const BNE = (): Uint8Array[0] {}
-const BPL = (): Uint8Array[0] {}
-const BRK = (): Uint8Array[0] {}
-const BVC = (): Uint8Array[0] {}
-const BVS = (): Uint8Array[0] {}
-const CLC = (): Uint8Array[0] {}
-const CLD = (): Uint8Array[0] {}
-const CLI = (): Uint8Array[0] {}
-const CLV = (): Uint8Array[0] {}
-const CMP = (): Uint8Array[0] {}
-const CPX = (): Uint8Array[0] {}
-const CPY = (): Uint8Array[0] {}
-const DEC = (): Uint8Array[0] {}
-const DEX = (): Uint8Array[0] {}
-const DEY = (): Uint8Array[0] {}
-const EOR = (): Uint8Array[0] {}
-const INC = (): Uint8Array[0] {}
-const INX = (): Uint8Array[0] {}
-const INY = (): Uint8Array[0] {}
-const JMP = (): Uint8Array[0] {}
-const JSR = (): Uint8Array[0] {}
-const LDA = (): Uint8Array[0] {}
-const LDX = (): Uint8Array[0] {}
-const LDY = (): Uint8Array[0] {}
-const LSR = (): Uint8Array[0] {}
-const NOP = (): Uint8Array[0] {}
-const ORA = (): Uint8Array[0] {}
-const PHA = (): Uint8Array[0] {}
-const PHP = (): Uint8Array[0] {}
-const PLA = (): Uint8Array[0] {}
-const PLP = (): Uint8Array[0] {}
-const ROL = (): Uint8Array[0] {}
-const ROR = (): Uint8Array[0] {}
-const RTI = (): Uint8Array[0] {}
-const RTS = (): Uint8Array[0] {}
-const SBC = (): Uint8Array[0] {}
-const SEC = (): Uint8Array[0] {}
-const SED = (): Uint8Array[0] {}
-const SEI = (): Uint8Array[0] {}
-const STA = (): Uint8Array[0] {}
-const STX = (): Uint8Array[0] {}
-const STY = (): Uint8Array[0] {}
-const TAX = (): Uint8Array[0] {}
-const TAY = (): Uint8Array[0] {}
-const TSX = (): Uint8Array[0] {}
-const TXA = (): Uint8Array[0] {}
-const TXS = (): Uint8Array[0] {}
-const TYA = (): Uint8Array[0] {}
-const XXX = (): Uint8Array[0] {}
+// Oc.pcodes (private)
+const ADC = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+    c.temp = c.a + c.fetched + c.getFlag(CPU_FLAG.C);
+    c.setFlag(CPU_FLAG.C, c.temp > 255);
+    c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0);
+    c.setFlag(CPU_FLAG.V, !!((~(c.a ^ c.fetched) & (c.a ^ c.temp)) & 0x0080));
+    c.setFlag(CPU_FLAG.N, !!(c.temp & 0x80));
+    c.a = c.temp & 0x00FF;
+
+    return 1;
+};
+const AND = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.a = c.a & c.fetched;
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, !!(c.a & 0x80));
+
+	return 1;
+};
+const ASL = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.fetched << 1;
+	c.setFlag(CPU_FLAG.C, (c.temp & 0xFF00) > 0);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x80) !== 0x00);
+	if (lookup[c.opcode].addressMode === IMP)
+		c.a = c.temp & 0x00FF;
+	else
+		c.write(c.addressAbsolute, c.temp & 0x00FF);
+
+    return 0;
+};
+const BCC = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.C) === 0) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+		
+		if((c.addressAbsolute & 0xFF00) !== (c.pc & 0xFF00))
+			c.cycles++;
+		
+		c.pc = c.addressAbsolute;
+	}
+
+    return 0;
+};
+const BCS = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.C) == 1) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+
+    return 0;
+};
+const BEQ = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.Z) == 1) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+
+    return 0;
+};
+const BIT = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.a & c.fetched;
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.fetched & (1 << 7)) !== 0x00);
+	c.setFlag(CPU_FLAG.V, (c.fetched & (1 << 6)) !== 0x00);
+	
+    return 0;
+};
+const BMI = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.N) === 1) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+
+    return 0;
+};
+const BNE = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.Z) == 0) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+	
+    return 0;
+};
+const BPL = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.N) == 0)
+	{
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+	
+    return 0;
+};
+const BRK = (c: Cpu): Uint8Array[0] => {
+    c.pc++;
+	
+	c.setFlag(CPU_FLAG.I, true);
+	c.write(0x0100 + c.stkp, (c.pc >> 8) & 0x00FF);
+	c.stkp--;
+	c.write(0x0100 + c.stkp, c.pc & 0x00FF);
+	c.stkp--;
+
+	c.setFlag(CPU_FLAG.B, true);
+	c.write(0x0100 + c.stkp, c.status);
+	c.stkp--;
+	c.setFlag(CPU_FLAG.B, false);
+
+	c.pc = c.read(0xFFFE) | (c.read(0xFFFF) << 8);
+	
+    return 0;
+};
+const BVC = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.V) === 0) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+	
+    return 0;
+};
+const BVS = (c: Cpu): Uint8Array[0] => {
+    if (c.getFlag(CPU_FLAG.V) === 1) {
+		c.cycles++;
+		c.addressAbsolute = c.pc + c.addressRelative;
+
+		if ((c.addressAbsolute & 0xFF00) != (c.pc & 0xFF00))
+			c.cycles++;
+
+		c.pc = c.addressAbsolute;
+	}
+	
+    return 0;
+};
+const CLC = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.C, false);
+    
+	return 0;
+};
+const CLD = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.D, false);
+    
+	return 0;
+};
+const CLI = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.I, false);
+    
+	return 0;
+};
+const CLV = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.V, false);
+    
+	return 0;
+};
+const CMP = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.a - c.fetched;
+	c.setFlag(CPU_FLAG.C, c.a >= c.fetched);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+
+	return 1;
+};
+const CPX = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.x - c.fetched;
+	c.setFlag(CPU_FLAG.C, c.x >= c.fetched);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	
+    return 0;
+};
+const CPY = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.y - c.fetched;
+	c.setFlag(CPU_FLAG.C, c.y >= c.fetched);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	
+    return 0;
+};
+const DEC = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.fetched - 1;
+	c.write(c.addressAbsolute, c.temp & 0x00FF);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	
+    return 0;
+};
+const DEX = (c: Cpu): Uint8Array[0] => {
+    c.x--;
+	c.setFlag(CPU_FLAG.Z, c.x === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.x & 0x80) !== 0x00);
+	
+    return 0;
+};
+const DEY = (c: Cpu): Uint8Array[0] => {
+    c.y--;
+	c.setFlag(CPU_FLAG.Z, c.y === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.y & 0x80) !== 0x00);
+	
+    return 0;
+};
+const EOR = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.a = c.a ^ c.fetched;	
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) !== 0x00);
+
+	return 1;
+};
+const INC = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = c.fetched + 1;
+	c.write(c.addressAbsolute, c.temp & 0x00FF);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	
+    return 0;
+};
+const INX = (c: Cpu): Uint8Array[0] => {
+    c.x++;
+	c.setFlag(CPU_FLAG.Z, c.x === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.x & 0x80) !== 0x00);
+	
+    return 0;
+};
+const INY = (c: Cpu): Uint8Array[0] => {
+    c.y++;
+	c.setFlag(CPU_FLAG.Z, c.y === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.y & 0x80) !== 0x00);
+	
+    return 0;
+};
+const JMP = (c: Cpu): Uint8Array[0] => {
+    c.pc = c.addressAbsolute;
+	
+    return 0;
+};
+const JSR = (c: Cpu): Uint8Array[0] => {
+    c.pc--;
+
+	c.write(0x0100 + c.stkp, (c.pc >> 8) & 0x00FF);
+	c.stkp--;
+	c.write(0x0100 + c.stkp, c.pc & 0x00FF);
+	c.stkp--;
+
+	c.pc = c.addressAbsolute;
+	
+    return 0;
+};
+const LDA = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.a = c.fetched;
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) === 0x00);
+	
+    return 1;
+};
+const LDX = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.x = c.fetched;
+	c.setFlag(CPU_FLAG.Z, c.x === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.x & 0x80) === 0x00);
+	return 1;
+};
+const LDY = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.y = c.fetched;
+	c.setFlag(CPU_FLAG.Z, c.y === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.y & 0x80) !== 0x00);
+	return 1;
+};
+const LSR = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.setFlag(CPU_FLAG.C, (c.fetched & 0x0001) !== 0x0000);
+	c.temp = c.fetched >> 1;	
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	if (lookup[c.opcode].addressMode === IMP)
+		c.a = c.temp & 0x00FF;
+	else
+		c.write(c.addressAbsolute, c.temp & 0x00FF);
+	
+    return 0;
+};
+const NOP = (c: Cpu): Uint8Array[0] => {
+    switch (c.opcode) {
+        case 0x1C:
+        case 0x3C:
+        case 0x5C:
+        case 0x7C:
+        case 0xDC:
+        case 0xFC:
+            return 1;
+            break;
+    }
+    
+    return 0;
+};
+const ORA = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.a = c.a | c.fetched;
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) !== 0x00);
+	return 1;
+};
+const PHA = (c: Cpu): Uint8Array[0] => {
+    c.write(0x0100 + c.stkp, c.a);
+	c.stkp--;
+
+	return 0;
+};
+const PHP = (c: Cpu): Uint8Array[0] => {
+    c.write(0x0100 + c.stkp, c.status | CPU_FLAG.B | CPU_FLAG.U);
+	c.setFlag(CPU_FLAG.B, false);
+	c.setFlag(CPU_FLAG.U, false);
+	c.stkp--;
+	
+    return 0;
+};
+const PLA = (c: Cpu): Uint8Array[0] => {
+    c.stkp++;
+	c.a = c.read(0x0100 + c.stkp);
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) !== 0x00);
+	
+    return 0;
+};
+const PLP = (c: Cpu): Uint8Array[0] => {
+    c.stkp++;
+	c.status = c.read(0x0100 + c.stkp);
+	c.setFlag(CPU_FLAG.U, true);
+	
+    return 0;
+};
+const ROL = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = <Uint16Array[0]>(c.fetched << 1) | c.getFlag(CPU_FLAG.C);
+	c.setFlag(CPU_FLAG.C, (c.temp & 0xFF00) !== 0x0000);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x0000);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x0000);
+	if (lookup[c.opcode].addressMode === IMP)
+		c.a = c.temp & 0x00FF;
+	else
+		c.write(c.addressAbsolute, c.temp & 0x00FF);
+	
+        return 0;
+};
+const ROR = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	c.temp = <Uint16Array[0]>(c.getFlag(CPU_FLAG.C) << 7) | (c.fetched >> 1);
+	c.setFlag(CPU_FLAG.C, (c.fetched & 0x01) !== 0x00);
+	c.setFlag(CPU_FLAG.Z, (c.temp & 0x00FF) === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0x00);
+	if (lookup[c.opcode].addressMode === IMP)
+		c.a = c.temp & 0x00FF;
+	else
+		c.write(c.addressAbsolute, c.temp & 0x00FF);
+	
+        return 0;
+};
+const RTI = (c: Cpu): Uint8Array[0] => {
+    c.stkp++;
+	c.status = c.read(0x0100 + c.stkp);
+	c.status &= ~CPU_FLAG.B;
+	c.status &= ~CPU_FLAG.U;
+
+	c.stkp++;
+	c.pc = <Uint16Array[0]>c.read(0x0100 + c.stkp);
+	c.stkp++;
+	c.pc |= <Uint16Array[0]>c.read(0x0100 + c.stkp) << 8;
+	
+    return 0;
+};
+const RTS = (c: Cpu): Uint8Array[0] => {
+    c.stkp++;
+	c.pc = <Uint16Array[0]>c.read(0x0100 + c.stkp);
+	c.stkp++;
+	c.pc |= <Uint16Array[0]>c.read(0x0100 + c.stkp) << 8;
+	
+	c.pc++;
+	
+    return 0;
+};
+const SBC = (c: Cpu): Uint8Array[0] => {
+    c.fetch();
+	
+	const value = (<Uint16Array[0]>c.fetched) ^ 0x00FF;
+	
+	c.temp = <Uint16Array[0]>c.a + value + <Uint16Array[0]>c.getFlag(CPU_FLAG.C);
+	c.setFlag(CPU_FLAG.C, (c.temp & 0xFF00) !== 0);
+	c.setFlag(CPU_FLAG.Z, ((c.temp & 0x00FF) === 0));
+	c.setFlag(CPU_FLAG.V, ((c.temp ^ <Uint16Array[0]>c.a) & (c.temp ^ value) & 0x0080) !== 0);
+	c.setFlag(CPU_FLAG.N, (c.temp & 0x0080) !== 0);
+	c.a = c.temp & 0x00FF;
+	
+	return 1;
+};
+const SEC = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.C, true);
+	
+    return 0;
+};
+const SED = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.D, true);
+	
+    return 0;
+};
+const SEI = (c: Cpu): Uint8Array[0] => {
+    c.setFlag(CPU_FLAG.I, true);
+	
+    return 0;
+};
+const STA = (c: Cpu): Uint8Array[0] => {
+    c.write(c.addressAbsolute, c.a);
+	
+    return 0;
+};
+const STX = (c: Cpu): Uint8Array[0] => {
+    c.write(c.addressAbsolute, c.x);
+	
+    return 0;
+};
+const STY = (c: Cpu): Uint8Array[0] => {
+    c.write(c.addressAbsolute, c.y);
+	
+    return 0;
+};
+const TAX = (c: Cpu): Uint8Array[0] => {
+    c.x = c.a;
+	c.setFlag(CPU_FLAG.Z, c.x === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.x & 0x80) !== 0x00);
+	
+    return 0;
+};
+const TAY = (c: Cpu): Uint8Array[0] => {
+    c.y = c.a;
+	c.setFlag(CPU_FLAG.Z, c.y === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.y & 0x80) !== 0x00);
+	
+    return 0;
+};
+const TSX = (c: Cpu): Uint8Array[0] => {
+    c.x = c.stkp;
+	c.setFlag(CPU_FLAG.Z, c.x === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.x & 0x80) !== 0x00);
+	
+    return 0;
+};
+const TXA = (c: Cpu): Uint8Array[0] => {
+    c.a = c.x;
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) !== 0x00);
+	
+    return 0;
+};
+const TXS = (c: Cpu): Uint8Array[0] => {
+    c.stkp = c.x;
+	
+    return 0;
+};
+const TYA = (c: Cpu): Uint8Array[0] => {
+    c.a = c.y;
+	c.setFlag(CPU_FLAG.Z, c.a === 0x00);
+	c.setFlag(CPU_FLAG.N, (c.a & 0x80) !== 0x00);
+	
+    return 0;
+};
+const XXX = (c: Cpu): Uint8Array[0] => {
+    return 0;
+};
 
 const lookup: INSTRUCTION[] = [];

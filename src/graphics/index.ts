@@ -1,3 +1,5 @@
+export * from './pixel';
+export * from './sprite';
 export const MOUSE_BUTTONS: Uint8Array[0] = 5;
 export const DEFAULT_ALPHA: Uint8Array[0] = 0xFF;
 export const DEFAULT_PIXEL: Uint32Array[0] = (DEFAULT_ALPHA << 24);
@@ -20,6 +22,8 @@ export enum Key {
     CAPS_LOCK, ENUM_END
 }
 
-export class HWButton {
-    constructor(public pressed: boolean, public released: boolean, public held: boolean) {}
+export interface HWButton {
+    bPressed: boolean;
+	bReleased: boolean;
+	bHeld: boolean;
 }
