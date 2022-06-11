@@ -1,29 +1,57 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
         <meta http-equiv="origin-trial" content="AvyDIV+RJoYs8fn3W6kIrBhWw0te0klraoz04mw/nPb8VTus3w5HCdy+vXqsSzomIH745CT6B5j1naHgWqt/tw8AAABJeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJmZWF0dXJlIjoiV2ViR1BVIiwiZXhwaXJ5IjoxNjYzNzE4Mzk5fQ==" />
         <meta charset="utf-8" />
-        <title>Webpack App</title>
+        <title>NES Emulator</title>
     </head>
     <body>
-        <h1>Hello world!</h1>
-        <h2>Tip: Check your console</h2>
-        <canvas id="canvas">
+        <h1>NES World!</h1>
+        <label for="file">Choose ROM</label>
+        <input type="file" id="imagefile" accept=".png,.webp">
+        <input type="file" id="file" accept=".nes">
+        <canvas id="canvas" width="780" height="480">
             Canvas not available
         </canvas>
+        <table>
+            <tr>
+                <td><b>Status:</b></td>
+                <td>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="n"> N </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="v"> V </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="u"> U </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="b"> B </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="d"> D </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="i"> I </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="z"> Z </pre>
+                    <pre style="display: inline; font-size: 30px;" class="flag" id="c"> C </pre>
+                </td>
+            </tr>
+            <tr><td><b>PC:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="pc"></pre></td></tr>
+            <tr><td><b>A:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="a"></pre></td></tr>
+            <tr><td><b>X:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="x"></pre></td></tr>
+            <tr><td><b>Y:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="y"></pre></td></tr>
+            <tr><td><b>SP:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="sp"></pre></td></tr>
+            <tr><td><b>FPS:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="fps"> 0</pre></td></tr>
+            <tr><td><b>Cycles:</b></td><td><pre style="display: inline; font-size: 30px;" class="flag" id="cycles"> 0</pre></td></tr>
+        </table>
+        <table>
+            <tr></tr>
+        </table>
+        <a href="sample.html">Sample</a>
     </body>
     
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker
+                /* navigator.serviceWorker
                     .register("service-worker.js")
                     .then((registration) => {
                         console.log("Service Worker registered: ", registration);
                     })
                     .catch((registrationError) => {
                         console.error("Service Worker registration failed: ", registrationError);
-                    });
+                    }); */
             });
         }
     </script>

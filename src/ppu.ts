@@ -3,8 +3,8 @@ import { Cartridge } from "./cartridge";
 import { MIRROR } from "./mapper/mapper";
 
 export class Ppu {
-  private tblName: Uint8Array[];
-  private tblPattern: Uint8Array[];
+  private tblName: [Uint8Array, Uint8Array];
+  private tblPattern: [Uint8Array, Uint8Array];
   private tblPalette: Uint8Array;
   private palScreen: Pixel[];
 
@@ -39,7 +39,7 @@ export class Ppu {
   private bgShifterPatternHi: Uint16Array[0] = 0x0000;
   private bgShifterAttribLo: Uint16Array[0] = 0x0000;
   private bgShifterAttribHi: Uint16Array[0] = 0x0000;
-  private OAM: ObjectAttributeEntry;
+  private OAM: ObjectAttributeEntry[];
   private oamAddress: Uint8Array[0] = 0x00;
   private spriteScanline: ObjectAttributeEntry[];
   private spriteCount: Uint8Array[0];
@@ -54,6 +54,21 @@ export class Ppu {
   public scanlineTrigger: boolean = false;
 
   constructor() {
+    this.tblName = [new Uint8Array(1024), new Uint8Array(1024)];
+    this.tblPattern = [new Uint8Array(4096), new Uint8Array(4096)];
+    this.tblPalette = new Uint8Array(32);
+
+    this.cart = <Cartridge><unknown>undefined;
+    this.status = { unused: 0, sprite_zero_hit: 0, sprite_overflow: 0, vertical_blank: 0, reg: 0 };
+    this.mask = { grayscale: 0, render_background_left: 0, render_sprites_left: 0, render_background: 0, render_sprites: 0, enhance_red: 0, enhance_green: 0, enhance_blue: 0, reg: 0 };
+    this.control = { nametable_x: 0, nametable_y: 0, increment_mode: 0, pattern_sprite: 0, pattern_background: 0, sprite_size: 0, slave_mode: 0, enable_nmi: 0, reg: 0 };
+    this.vRamAddress = { coarse_x: 0,coarse_y: 0,nametable_x: 0,nametable_y: 0,fine_y: 0,unused: 0, reg: 0 };
+    this.tRamAddress = { coarse_x: 0, coarse_y: 0, nametable_x: 0, nametable_y: 0, fine_y: 0, unused: 0, reg: 0 };
+    this.spriteScanline = [];
+    this.spriteCount = 0;
+
+    this.OAM = Ppu.populateOAM();
+    this.palScreen = [];
     this.palScreen[0x00] = new Pixel(84, 84, 84);
     this.palScreen[0x01] = new Pixel(0, 30, 116);
     this.palScreen[0x02] = new Pixel(8, 16, 144);
@@ -121,8 +136,21 @@ export class Ppu {
     this.palScreen[0x3d] = new Pixel(160, 162, 160);
     this.palScreen[0x3e] = new Pixel(0, 0, 0);
     this.palScreen[0x3f] = new Pixel(0, 0, 0);
+
+    this.spriteShifterPatternLo = new Uint8Array(8);
+    this.spriteShifterPatternHi = new Uint8Array(8);
   }
 
+  static populateOAM(): ObjectAttributeEntry[] {
+    const oam: ObjectAttributeEntry[] = [];
+
+    for (let x = 0; x < 64; x++) {
+      oam.push({ attribute: 0, id: 0, x: 0, y: 0 });
+    }
+
+    return oam;
+  }
+  
   getScreen(): Sprite {
     return this.sprScreen;
   }
@@ -160,6 +188,7 @@ export class Ppu {
   }
 
   getColorFromPaletteRam(palette: Uint8Array[0], pixel: Uint8Array[0]): Pixel {
+    //console.log(this);
     return this.palScreen[this.ppuRead(0x3f00 + (palette << 2) + pixel) & 0x3f];
   }
 
@@ -208,7 +237,7 @@ export class Ppu {
           break;
 
         case 0x0004:
-          data = this.OAM[this.oamAddress];
+          //data = this.OAM[this.oamAddress];
           break;
 
         case 0x0005:
@@ -246,7 +275,7 @@ export class Ppu {
         this.oamAddress = data;
         break;
       case 0x0004: // OAM Data
-        this.OAM[this.oamAddress] = data;
+        //this.OAM[this.oamAddress] = data;
         break;
       case 0x0005: // Scroll
         if (this.addressLatch == 0) {
@@ -281,6 +310,8 @@ export class Ppu {
     let data = 0x00;
     address &= 0x3fff;
 
+    //console.log('PPU Read', this.cart, this);
+
     if (this.cart.ppuRead(address, data)) {
     } else if (address >= 0x0000 && address <= 0x1fff) {
       data = this.tblPattern[(address & 0x1000) >> 12][address & 0x0fff];
@@ -296,7 +327,7 @@ export class Ppu {
           data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0c00 && address <= 0x0fff)
           data = this.tblName[1][address & 0x03ff];
-      } else if (this.cart.mirror() == MIRROR.HORIZONTAL) {
+      } else if (this.cart.mirror() === MIRROR.HORIZONTAL) {
         if (address >= 0x0000 && address <= 0x03ff)
           data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0400 && address <= 0x07ff)
@@ -640,11 +671,11 @@ export class Ppu {
       }
     }
 
-    if (this.scanline == 240) {
+    if (this.scanline === 240) {
     }
 
     if (this.scanline >= 241 && this.scanline < 261) {
-      if (this.scanline == 241 && this.cycle == 1) {
+      if (this.scanline === 241 && this.cycle === 1) {
         this.status.vertical_blank = 1;
 
         if (this.control.enable_nmi) this.nmi = true;

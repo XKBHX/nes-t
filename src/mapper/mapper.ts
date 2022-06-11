@@ -13,7 +13,7 @@ export abstract class Mapper {
     constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {
         this.pRGBanks = prgBanks;
         this.cHRBanks = chrBanks;
-        this.reset();
+        //this.reset();
     }
 
     abstract cpuMapRead(address: Uint16Array[0], mappedAddress: Uint32Array[0], data: Uint8Array[0]): boolean;

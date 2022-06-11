@@ -1,7 +1,7 @@
 import { Cartridge } from "./cartridge";
 import { Cpu } from "./cpu";
 import { Ppu } from "./ppu";
-import { Apu } from "./apu";
+//import { Apu } from "./apu";
 
 export class Bus {
   private audioTime: number = 0.0;
@@ -19,14 +19,20 @@ export class Bus {
   public audioSample: number = 0.0;
   public cpu: Cpu;
   public ppu: Ppu;
-  public apu: Apu;
+  //public apu: Apu;
   public cartridge: Cartridge;
-  public cpuRam: ArrayBuffer;
+  public cpuRam: Uint8Array;
   public controller: Uint8Array;
 
   constructor() {
     this.cpu = new Cpu();
     this.cpu.connectBus(this);
+    this.ppu = new Ppu();
+    //this.apu = new Apu();
+    this.cartridge = <Cartridge><unknown>undefined;
+    this.cpuRam = new Uint8Array(10);
+    this.controller = new Uint8Array(1);
+    this.controllerState = new Uint8Array(1)
   }
 
   setSampleFrequency(sampleRate: Uint32Array[0]): void {
@@ -45,7 +51,7 @@ export class Bus {
       address == 0x4015 ||
       address == 0x4017
     ) {
-      this.apu.cpuWrite(address, data);
+      //this.apu.cpuWrite(address, data);
     } else if (address === 0x4014) {
       this.dmaPage = data;
       this.dmaAddress = 0x00;
@@ -57,15 +63,15 @@ export class Bus {
   }
 
   cpuRead(address: Uint16Array[0], readOnly = false): Uint8Array[0] {
-    let data: Uint8Array[0];
+    let data: Uint8Array[0] = 0;
 
-    if (this.cartridge.cpuRead(address, data)) {
+    if (this.cartridge.cpuRead(address, data)) { console.log('Bus::cpuRead()', data);
     } else if (address >= 0x0000 && address <= 0x1fff) {
       data = this.cpuRam[address & 0x07ff];
     } else if (address >= 0x2000 && address <= 0x3fff) {
       data = this.ppu.cpuRead(address & 0x0007, readOnly);
     } else if (address == 0x4015) {
-      data = this.apu.cpuRead(address);
+      //data = this.apu.cpuRead(address);
     } else if (address >= 0x4016 && address <= 0x4017) {
       data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
       this.controllerState[address & 0x0001] <<= 1;
@@ -93,7 +99,7 @@ export class Bus {
 
   clock(): boolean {
     this.ppu.clock();
-    this.apu.clock();
+    //this.apu.clock();
 
     if (this.systemClockCounter % 3 === 0) {
       if (this.dmaTransfer) {
@@ -105,7 +111,7 @@ export class Bus {
           if (this.systemClockCounter % 2 === 0) {
             this.dmaData = this.cpuRead((this.dmaPage << 8) | this.dmaAddress);
           } else {
-            this.ppu.oAM[this.dmaAddress] = this.dmaData;
+            //this.ppu.OAM[this.dmaAddress] = this.dmaData;
             this.dmaAddress++;
 
             if (this.dmaAddress === 0x00) {
@@ -124,7 +130,7 @@ export class Bus {
 
     if (this.audioTime >= this.audioTimePerSystemSample) {
       this.audioTime -= this.audioTimePerSystemSample;
-      this.audioSample = this.apu.getOutputSample();
+      //this.audioSample = this.apu.getOutputSample();
       audioSampleReady = true;
     }
 

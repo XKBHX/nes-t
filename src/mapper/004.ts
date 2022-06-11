@@ -18,6 +18,9 @@ export class Mapper004 extends Mapper {
   constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {
     super(prgBanks, chrBanks);
     this.ramStatic = new Uint8Array(32 * 1024);
+    this.register = new Uint32Array(8);
+    this.cHRBank = new Uint32Array(8);
+    this.pRGBank = new Uint32Array(4);
   }
 
   override cpuMapRead(
@@ -213,7 +216,7 @@ export class Mapper004 extends Mapper {
     this.pRGBank[3] = (this.pRGBanks * 2 - 1) * 0x2000;
   }
   override mirror(): MIRROR {
-    throw new Error("Method not implemented.");
+    return this.mirrorMode;
   }
   override irqState(): boolean {
     return this.iRQActive;

@@ -3,7 +3,7 @@ import { renderer } from './platform';
 import { VF2D } from './render';
 import { Sprite } from './sprite';
 
-export enum DecalMode {
+export const enum DecalMode {
 	NORMAL,
 	ADDITIVE,
 	MULTIPLICATIVE,
@@ -13,7 +13,7 @@ export enum DecalMode {
 	MODEL3D,
 }
 
-export enum DecalStructure {
+export const enum DecalStructure {
 	LINE,
 	FAN,
 	STRIP,
@@ -37,6 +37,7 @@ export class Decal {
     public uvScale: VF2D = new VF2D(1.0, 1.0);
 
     constructor(public sprite: Sprite, filter: boolean = false, clamp: boolean = true) {
+		console.log('Decal Constructed');
 		this.id = -1;
 
 		if(!sprite) return;

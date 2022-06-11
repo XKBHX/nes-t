@@ -14,6 +14,8 @@ export class Pixel {
     static defaultPixel(): Pixel {
         return Pixel.createFrom32BitInt(0xFF << 24);
     }
+    
+    duplicate(): Pixel { return new Pixel(this.red, this.green, this.blue, this.alpha); }
 
     isEqual(p: Pixel): boolean {
         return this.red === p.red && this.green === p.green && this.blue === p.blue && this.alpha === p.alpha;

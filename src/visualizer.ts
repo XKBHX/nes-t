@@ -1,5 +1,7 @@
 import { Bus } from './bus';
 import { Cartridge } from './cartridge';
+import { CPU_FLAG } from './cpu';
+import { GREEN, Pixel, RED, WHITE } from './graphics';
 
 export class Visualizer {
     private nes: Bus
@@ -40,25 +42,28 @@ export class Visualizer {
 
     private drawCpu(x: number, y: number): void {
         const status = 'STATUS: ';
-        drawString(x , y , "STATUS:", olc::WHITE);
-        drawString(x  + 64, y, "N", nes.cpu.status & olc6502::N ? olc::GREEN : olc::RED);
-        drawString(x  + 80, y , "V", nes.cpu.status & olc6502::V ? olc::GREEN : olc::RED);
-        drawString(x  + 96, y , "-", nes.cpu.status & olc6502::U ? olc::GREEN : olc::RED);
-        drawString(x  + 112, y , "B", nes.cpu.status & olc6502::B ? olc::GREEN : olc::RED);
-        drawString(x  + 128, y , "D", nes.cpu.status & olc6502::D ? olc::GREEN : olc::RED);
-        drawString(x  + 144, y , "I", nes.cpu.status & olc6502::I ? olc::GREEN : olc::RED);
-        drawString(x  + 160, y , "Z", nes.cpu.status & olc6502::Z ? olc::GREEN : olc::RED);
-        drawString(x  + 178, y , "C", nes.cpu.status & olc6502::C ? olc::GREEN : olc::RED);
-        drawString(x , y + 10, "PC: $" + hex(nes.cpu.pc, 4));
-        drawString(x , y + 20, "A: $" +  hex(nes.cpu.a, 2) + "  [" + std::to_string(nes.cpu.a) + "]");
-        drawString(x , y + 30, "X: $" +  hex(nes.cpu.x, 2) + "  [" + std::to_string(nes.cpu.x) + "]");
-        drawString(x , y + 40, "Y: $" +  hex(nes.cpu.y, 2) + "  [" + std::to_string(nes.cpu.y) + "]");
-        drawString(x , y + 50, "Stack P: $" + hex(nes.cpu.stkp, 4));
+        
+        this.drawString(x , y , 'STATUS:', WHITE);
+        this.drawString(x  + 64, y, 'N', this.nes.cpu.status & CPU_FLAG.N ? GREEN : RED);
+        this.drawString(x  + 80, y , 'V', this.nes.cpu.status & CPU_FLAG.V ? GREEN : RED);
+        this.drawString(x  + 96, y , '-', this.nes.cpu.status & CPU_FLAG.U ? GREEN : RED);
+        this.drawString(x  + 112, y , 'B', this.nes.cpu.status & CPU_FLAG.B ? GREEN : RED);
+        this.drawString(x  + 128, y , 'D', this.nes.cpu.status & CPU_FLAG.D ? GREEN : RED);
+        this.drawString(x  + 144, y , 'I', this.nes.cpu.status & CPU_FLAG.I ? GREEN : RED);
+        this.drawString(x  + 160, y , 'Z', this.nes.cpu.status & CPU_FLAG.Z ? GREEN : RED);
+        this.drawString(x  + 178, y , 'C', this.nes.cpu.status & CPU_FLAG.C ? GREEN : RED);
+        this.drawString(x , y + 10, 'PC: $' + this.hex(this.nes.cpu.pc, 4));
+        this.drawString(x , y + 20, 'A: $' +  this.hex(this.nes.cpu.a, 2) + '  [' + String(this.nes.cpu.a) + ']');
+        this.drawString(x , y + 30, 'X: $' +  this.hex(this.nes.cpu.x, 2) + '  [' + String(this.nes.cpu.x) + ']');
+        this.drawString(x , y + 40, 'Y: $' +  this.hex(this.nes.cpu.y, 2) + '  [' + String(this.nes.cpu.y) + ']');
+        this.drawString(x , y + 50, 'Stack P: $' + this.hex(this.nes.cpu.stkp, 4));
     }
 
     private drawCode(x: number, y: number, lines: number): void {
         
     }
+
+    private drawString(x: number, y: number, text: string, col: Pixel = WHITE, scale: number = 1): void {}
 }
 
 type AsmMap = {

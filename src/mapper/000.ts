@@ -13,13 +13,14 @@ export class Mapper000 extends Mapper {
 
     return false;
   }
+  
   override cpuMapWrite(address: number, mappedAddress: number, data: number): boolean {
     if (address >= 0x8000 && address <= 0xFFFF) {
-		mappedAddress = address & (this.pRGBanks > 1 ? 0x7FFF : 0x3FFF);
-		return true;
-	}
+	  	mappedAddress = address & (this.pRGBanks > 1 ? 0x7FFF : 0x3FFF);
+	  	return true;
+	  }
 
-	return false;
+	  return false;
   }
   override ppuMapRead(address: number, mappedAddress: number): boolean {
     if (address >= 0x0000 && address <= 0x1FFF)
@@ -31,29 +32,14 @@ export class Mapper000 extends Mapper {
 	return false;
   }
   override ppuMapWrite(address: number, mappedAddress: number): boolean {
-    if (address >= 0x0000 && address <= 0x1FFF)
-	{
-		if (this.cHRBanks === 0)
-		{
-			// Treat as RAM
-			mappedAddress = address;
-			return true;
-		}
-	}
+    if (address >= 0x0000 && address <= 0x1FFF) {
+	  	if (this.cHRBanks === 0) {
+	  		// Treat as RAM
+	  		mappedAddress = address;
+	  		return true;
+	  	}
+	  }
 
-	return false;
-  }
-  override reset(): void {}
-  override mirror(): MIRROR {
-    throw new Error("Method not implemented.");
-  }
-  override irqState(): boolean {
-    throw new Error("Method not implemented.");
-  }
-  override irqClear(): void {
-    throw new Error("Method not implemented.");
-  }
-  override scanline(): void {
-    throw new Error("Method not implemented.");
+	  return false;
   }
 }

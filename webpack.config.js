@@ -12,6 +12,7 @@ const config = {
   entry: "./src/index.ts",
   output: {
     path: path.resolve(__dirname, "dist"),
+    assetModuleFilename: 'images/[hash][ext][query]',
   },
   devtool: 'inline-source-map',
   devServer: {
@@ -48,6 +49,11 @@ const config = {
       {
         test: /\.(wgsl|glsl|vs|fs)$/i,
         loader: "ts-shader-loader",
+      },
+      {
+        test: /\.nes/,
+        type: 'asset/source',
+        generator: { filename: 'images/[hash][ext][query]'}
       },
 
       // Add your rules for custom modules here
