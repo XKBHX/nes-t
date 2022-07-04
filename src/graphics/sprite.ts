@@ -22,7 +22,7 @@ export class Sprite {
         return new Sprite();
     }
     
-    static createSpriteFromFile(imageFile: ImageData, pack: ResourcePack = <ResourcePack><unknown>undefined): Sprite {
+    static createSpriteFromFile(imageFile: ImageBitmap, pack: ResourcePack = <ResourcePack><unknown>undefined): Sprite {
         console.log('Sprite.createSpriteFromFile()');
         const s = new Sprite();
         s.loadFromFile(imageFile, pack);
@@ -50,7 +50,7 @@ export class Sprite {
         return s;
     }
 
-    loadFromFile(imageFile: ImageData, pack: ResourcePack = <ResourcePack><unknown>undefined):RCode {
+    loadFromFile(imageFile: ImageBitmap, pack: ResourcePack = <ResourcePack><unknown>undefined):RCode {
         return Sprite.loader.loadImageResource(this, imageFile, pack);
     }
 

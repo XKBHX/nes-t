@@ -1,12 +1,14 @@
+import {} from 'tslib';
 import { RCode } from '.';
 import { Decal, DecalInstance, DecalMode, DecalStructure } from './decal';
 import { GameEngine } from './engine';
 import { Pixel, WHITE } from './pixel';
 import { ResourcePack } from './resource';
 import { Sprite } from './sprite';
-import {} from 'tslib';
 import { createGPUBuffer } from '../gpu';
+import { GPUViewportDescriptor, ImageWebGPURenderable } from './webgpu.renderable';
 import square from '../square.shader';
+import textureShader from '../texture.shader';
 
 export interface LayerDesc {
 	offset: VF2D; // { 0, 0 };
@@ -55,7 +57,7 @@ export class Renderable {
         return renderable;
     }
 
-    load(file: ImageData, pack: ResourcePack, filter: boolean = false, clamp: boolean = true): RCode {
+    load(file: ImageBitmap, pack: ResourcePack, filter: boolean = false, clamp: boolean = true): RCode {
         this._sprite = new Sprite();
 		if (this._sprite.loadFromFile(file, pack) === RCode.OK)
 		{
@@ -159,7 +161,7 @@ export class WebGPURenderer extends Renderer {
     private shader: string;
     private mainSprite: Sprite = <Sprite><unknown>undefined;
     private defaultTexture: GPUTexture = <GPUTexture><unknown>undefined;
-    private currentClearColor: GPUColorDict = { r: 0, g: 0, b: 0, a: 1 };
+    private currentClearColor: GPUColorDict = { r: 0, g: 0, b: 0, a: 0 };
     private mouseX: number = 0;
     private mouseY: number = 0;
     
@@ -179,25 +181,7 @@ export class WebGPURenderer extends Renderer {
             this.mouseY = e.pageY / window.innerHeight * 2;
         }, false);
 
-        this.shader = /* wgsl */ `
-        struct Output {
-            @builtin(position) Position: vec4<f32>;
-            @location(0) vColor: vec4<f32>;
-        }
-        
-        @stage(vertex)
-        fn vs_main(@location(0) pos: vec4<f32>, @location(1) color: vec4<f32>) -> Output {
-            var output : Output;
-            output.Position = pos;
-            output.vColor = color;
-        
-            return output;
-        }
-
-        @stage(fragment)
-        fn fs_main(@location(0) vColor: vec4<f32>) -> @location(0) vec4<f32> {
-            return vColor;
-        }
+        this.shader = /* wgsl */ `node
         `;
     }
 
@@ -250,10 +234,12 @@ export class WebGPURenderer extends Renderer {
         const colorData: Float32Array = this.getColorBuffer(this.getGPUColor(tint), 6);
         //const commandEncoder = this.device.createCommandEncoder();
         //const renderPassEncoder = commandEncoder.beginRenderPass(this.getRenderPassDescriptor());
+        const layout: GPUPipelineLayout = this.device.createPipelineLayout({ bindGroupLayouts: [] })
         const pipelineDescriptor: GPURenderPipelineDescriptor = {
             vertex: this.getVertexState(),
             fragment: this.getFragmentState(),
-            primitive: this.getPrimitive()
+            primitive: this.getPrimitive(),
+            layout
         };
         const pipeline = this.device.createRenderPipeline(pipelineDescriptor);
 
@@ -333,11 +319,12 @@ export class WebGPURenderer extends Renderer {
         const clearValue = this.currentClearColor;
         const vertexBuffer = createGPUBuffer(this.device, this.displayVertexData);
         const colorBuffer = createGPUBuffer(this.device, this.displayColorData);
-        const module = this.device.createShaderModule({ code: this.shader });
+        const module = this.device.createShaderModule({ code: textureShader });
         const vertex: GPUVertexState = { module, entryPoint: 'vs_main', buffers: vertexBuffers };
         const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] };
-        const primitive: GPUPrimitiveState = { topology: 'line-list' };
-        const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive };
+        const primitive: GPUPrimitiveState = { topology: 'triangle-list', cullMode: 'back', frontFace: 'ccw' };
+        const layout: GPUPipelineLayout = <GPUPipelineLayout>{}
+        const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, layout };
         //const commandEncoder = this.device.createCommandEncoder();
         const view = this.context.getCurrentTexture().createView();
         const colorAttachment: GPURenderPassColorAttachment = { view, clearValue, loadOp: 'clear', storeOp: 'store' }; 
@@ -460,62 +447,171 @@ export class WebGPURenderer extends Renderer {
         return buffer;
     }
 
-    drawImage(sprite: Sprite, scale: VF2D, offset: VF2D = new VF2D(0, 0)): void {
-        //const sprite = this.mainSprite;
-        //console.log('Draw Image', sprite);
-        const pixelCount = sprite.colData.length;
+    drawImage(sprite: Sprite, scale: VF2D, offset: VF2D = new VF2D(0, 0), imageFile: ImageBitmap =  new ImageBitmap()): void {
+        const pixelCount = sprite.width * sprite.height;
         const spriteDimensions = new VI2D(sprite.width, sprite.height);
         const dimensions = this.getScreenDimensions();
         const format = this.format;
         const width = dimensions.x;
         const height = dimensions.y;
-        const vertexData = this.getVertexBufferFromDimensions(spriteDimensions);
-        const colorData = this.getColorBufferFromPixels(sprite.colData);
-
-        //console.log('Vertex', vertexData);
+        const vertexData = new Float32Array([
+            +1, +1,    1, 0,
+            -1, +1,    0, 0,
+            -1, -1,    0, 1,
+            +1, -1,    1, 1,
+            +1, +1,    1, 0,
+            -1, -1,    0, 1,
+        ]);
 
         if(pixelCount !== (sprite.width * sprite.height)) console.log('***Size Mismatch***', sprite, pixelCount);
 
-        //for (let y = 0; y < sprite.height; y++) {
-        //    for (let x = 0; x < sprite.width; x++) {
-        //        vertexData[x + y]     = -1 + (2 * (x / sprite.width));
-        //        vertexData[x + y + 1] =  1 - (2 * (y / sprite.height));
-        //    }
-        //}
-
-        //console.log('Draw Image', colorData);
-
-        const vertexBufferAttributes: GPUVertexAttribute[] = [
+        const attributes: GPUVertexAttribute[] = [
             { shaderLocation: 0, format: 'float32x2', offset: 0 },
-            { shaderLocation: 1, format: 'float32x4', offset: 0 },
+            { shaderLocation: 1, format: 'float32x2', offset: 2 * 4 },
         ];
         const vertexBuffers: GPUVertexBufferLayout[] = [
-            { arrayStride: 8, attributes: [ vertexBufferAttributes[0] ] },
-            { arrayStride: 16, attributes: [ vertexBufferAttributes[1] ] },
+            { arrayStride: 4 * 4, attributes },
         ];
         
-        const clearValue = this.currentClearColor;
+        const clearValue: GPUColorDict = { r: 1, g: 0, b: 0, a: 1 };
+        //console.log('Clear Color', clearValue);
+        
         const vertexBuffer = createGPUBuffer(this.device, vertexData);
-        const colorBuffer = createGPUBuffer(this.device, colorData);
-        const module = this.device.createShaderModule({ code: this.shader });
+        const module = this.device.createShaderModule({ code: textureShader });
+        
         const vertex: GPUVertexState = { module, entryPoint: 'vs_main', buffers: vertexBuffers };
         const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] };
-        const primitive: GPUPrimitiveState = { topology: 'point-list' };
-        const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive };
-        const commandEncoder = this.device.createCommandEncoder();
+        const primitive: GPUPrimitiveState = { topology: 'triangle-list' };
+        const depthStencil: GPUDepthStencilState = { depthWriteEnabled: false, depthCompare: 'less', format: 'rgba8unorm' };
+        
+        
+        const textureSize = { width: imageFile.width, height: imageFile.height };
+        const descriptor: GPUTextureDescriptor = {
+            size: textureSize,
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+        };
+        
+        const texture = this.device.createTexture(descriptor);
         const view = this.context.getCurrentTexture().createView();
+        
+        
+        
+        this.device.queue.writeBuffer(vertexBuffer, 0, vertexData);
+        
         const colorAttachment: GPURenderPassColorAttachment = { view, clearValue, loadOp: 'clear', storeOp: 'store' }; 
-        const passDescriptor: GPURenderPassDescriptor = { colorAttachments: [ colorAttachment ]}
-        const renderPass = commandEncoder.beginRenderPass(passDescriptor)
+        const passDescriptor: GPURenderPassDescriptor = { colorAttachments: [ colorAttachment ] }
+        
+        this.device.queue.copyExternalImageToTexture({ source: imageFile }, { texture }, textureSize);
+        
+        const sampler = this.device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+        });
+        
+        const samplerBindingLayout: GPUSamplerBindingLayout = { type: 'filtering' }
+        const textureBindingLayout: GPUTextureBindingLayout = { sampleType: 'float' }
+        const bindGroupLayout = this.device.createBindGroupLayout({ entries: [
+            { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: samplerBindingLayout },
+            { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: textureBindingLayout }
+        ] })
+        const textureGroup = this.device.createBindGroup({
+            label: 'Image Texture',
+            layout: bindGroupLayout,
+            entries: [
+                { binding: 0, resource: sampler },
+                { binding: 1, resource: texture.createView() },
+            ]
+        });
+        const layout: GPUPipelineLayout = this.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] })
+        
+        const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, layout };
         const pipeline = this.device.createRenderPipeline(pipelineDescriptor)
+        
+        let aspect = imageFile.width / imageFile.height;
+        const position = { x: 0, y: 0 };
+        const _scale = { x: 1, y: 1 };
+        
+        const commandEncoder = this.device.createCommandEncoder();
+        const renderPass = commandEncoder.beginRenderPass(passDescriptor)
+        const cWidth = (this.context.canvas as HTMLCanvasElement).clientWidth
+        const cHeight = (this.context.canvas as HTMLCanvasElement).clientHeight
+        const tWidth = cWidth * 0.5
+        const tHeight = cHeight * 0.5
+        const screenPosX = (cWidth * 780 - 1) + ( 2 * cWidth)
+        const screenPosY = (cWidth * 780 - 1) + ( 2 * cWidth)
 
+        //console.log(cWidth, cHeight)
+        
         renderPass.setPipeline(pipeline)
+        renderPass.setBindGroup(0, textureGroup)
         renderPass.setVertexBuffer(0, vertexBuffer)
-        renderPass.setVertexBuffer(1, colorBuffer)
-        renderPass.draw(pixelCount * 1)
+        renderPass.setViewport(Math.min(1560 - tWidth, offset.x), Math.min(960 - tHeight, offset.y), tWidth, cHeight * 0.5, 0, 0)
+        renderPass.draw(6)
         renderPass.end()
         this.device.queue.submit([ commandEncoder.finish() ])
     }
+
+    drawImages(...imageRenderables: ImageWebGPURenderable[]) {
+        const commandEncoder = this.getCommandEncoder();
+        const renderPass = this.getImageRenderPassEncoder(commandEncoder);
+        let pos = 0;
+
+        for (const renderable of imageRenderables) {
+            const descriptor = renderable.getGPUTextureDescriptor();
+            const source = renderable.image;
+            const texture = renderable.getTexture(this.device);
+            const size = descriptor.size;
+            const index = renderable.renderIndex;
+            const bindGroup = renderable.getBingGroup(this.device);
+            const vertexBuffer = renderable.getVertexBuffer(this.device);
+            const cWidth = (this.context.canvas as HTMLCanvasElement).clientWidth
+            const cHeight = (this.context.canvas as HTMLCanvasElement).clientHeight
+            const tWidth = cWidth * 0.5
+            const tHeight = cHeight * 0.5
+            const viewportDescriptor: GPUViewportDescriptor = {
+                x: Math.min(cWidth - tWidth, pos * renderable.image.width),
+                y: Math.min(cHeight - tHeight, pos * renderable.image.height),
+                width: tWidth,
+                height: tHeight,
+                minDepth: 0,
+                maxDepth: 0,
+            };
+
+            const { x, y, width, height, minDepth, maxDepth } = viewportDescriptor;
+
+            
+            renderable.setViewportDescriptor(x, y, width, height, minDepth, maxDepth);
+            this.device.queue.copyExternalImageToTexture({ source }, { texture }, size);
+
+            renderPass.setPipeline(renderable.getPipeline(this.device));
+            renderPass.setBindGroup(index, bindGroup);
+            renderPass.setVertexBuffer(index, vertexBuffer);
+            renderPass.setViewport(x, y, width, height, minDepth, maxDepth);
+            renderPass.draw(6)
+
+            pos++;
+        }
+
+        renderPass.end()
+        this.device.queue.submit([ commandEncoder.finish() ])
+    }
+
+    getCommandEncoder(): GPUCommandEncoder {
+        return this.device.createCommandEncoder();
+    }
+
+    getImageRenderPassEncoder(commandEncoder: GPUCommandEncoder): GPURenderPassEncoder {
+        const view = this.context.getCurrentTexture().createView();
+        const clearValue: GPUColorDict = { r: 1, g: 0, b: 1, a: 1 };
+        const colorAttachment: GPURenderPassColorAttachment = { view, clearValue, loadOp: 'clear', storeOp: 'store' }; 
+        const passDescriptor: GPURenderPassDescriptor = { colorAttachments: [ colorAttachment ] };
+        const renderPass = commandEncoder.beginRenderPass(passDescriptor);
+
+        return renderPass;
+    }
+
+    drawColors() {}
 
     getVertexBufferFromDimensions(dimensions: VI2D, offset: VF2D = new VF2D(0, 0)): Float32Array {
         const pixelCount = dimensions.x * dimensions.y;

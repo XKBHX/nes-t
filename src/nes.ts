@@ -6,6 +6,7 @@ import { CPU_FLAG } from './cpu';
 import { Decal } from './graphics/decal';
 import { VF2D, WebGPURenderer } from './graphics/render';
 import { renderer } from './graphics/platform';
+import { ImageWebGPURenderable } from './graphics/webgpu.renderable';
 
 let count = 0;
 
@@ -23,7 +24,7 @@ export class NESGameEngine extends GameEngine {
     private sprite: Sprite = <Sprite><unknown>undefined;
     private decal: Decal = <Decal><unknown>undefined;
 
-    constructor(private romBuffer: ArrayBuffer = new ArrayBuffer(0), public imageFile: ImageData = new ImageData(0, 0), private soundSampleFrequency: number = 44100) {
+    constructor(private romBuffer: ArrayBuffer = new ArrayBuffer(0), public imageFile: ImageBitmap = new ImageBitmap(), private soundSampleFrequency: number = 44100) {
         super();
         this.sAppName = 'NES Emulator';
         this.nes = new Bus();
@@ -52,6 +53,7 @@ export class NESGameEngine extends GameEngine {
         this.sprite = Sprite.createSpriteFromFile(this.imageFile);
         this.decal = new Decal(this.sprite);
         console.log(this.sprite);
+        console.log('Format', (<any>renderer).format);
         
         return true; 
     }
@@ -82,12 +84,17 @@ export class NESGameEngine extends GameEngine {
 		this.drawSprite(0, 0, this.nes.ppu.getScreen(), 2); */
 
         //this.clockCount++;
-        const pos = this.getMousePos();
+        const pos = this.getWindowMouse();
+        //console.log('Pos', pos);
         //this.clear(VERY_DARK_BLUE);
-        (<WebGPURenderer>renderer).drawImage(this.sprite, new VF2D(1, 1));
+        //(<WebGPURenderer>renderer).drawImage(this.sprite, new VF2D(2, 2), new VF2D(pos.x, pos.y), this.imageFile);
+        //(<WebGPURenderer>renderer).drawImage(this.sprite, new VF2D(1, 1), new VF2D(500, 500), this.imageFile);
         //this.drawDecal(pos, this.decal, new VF2D(0.1, 0.1), RED);
         //this.drawSprite(pos.x, pos.y, this.sprite);
         //if (count < 3) console.log('Decal', this.decal);
+
+        const renderables = [ new ImageWebGPURenderable(this.imageFile, 0), new ImageWebGPURenderable(this.imageFile, 1)];
+        (<WebGPURenderer>renderer).drawImages(...renderables);
         count++;
         //console.log('Position', pos);
 
@@ -190,7 +197,7 @@ export class NESGameEngine extends GameEngine {
         if (sp) { sp.innerHTML = ` $${this.hex(this.nes.cpu.stkp, 2)}`; }
         if (fps) { fps.innerHTML = ` ${fpsCount}` }
         if (cycles) { cycles.innerHTML = ` ${this.nes.cpu.cycles}` }
-      }
+    }
     
       
 

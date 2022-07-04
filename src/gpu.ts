@@ -6,15 +6,16 @@ export const initGPU = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanv
     const aspectRation = canvas.clientWidth / canvas.clientHeight;
     const size: GPUExtent3D = [ canvas.clientWidth * pixelRatio, canvas.clientHeight * pixelRatio ]
     const format = context.getPreferredFormat(adapter);
+    const compositingAlphaMode: GPUCanvasCompositingAlphaMode = 'premultiplied';
 
     console.log({ pixelRatio, aspectRation });
     console.log({ w: canvas.clientWidth, h: canvas.clientHeight });
-    context.configure({ device, format, size });
+    context.configure({ device, format, size, compositingAlphaMode });
 
     return format;
 };
 
-export const createGPUBuffer = (device: GPUDevice, data: Float32Array, usage: GPUBufferUsageFlags = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST) => {
+export const createGPUBuffer = (device: GPUDevice, data: Float32Array, usage: GPUBufferUsageFlags = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST): GPUBuffer => {
     const size = data.byteLength;
     const bufferDescriptor: GPUBufferDescriptor = { size, usage, mappedAtCreation: true };
     const buffer = device.createBuffer(bufferDescriptor);

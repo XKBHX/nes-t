@@ -9,11 +9,14 @@ import { createEmptyGPUBuffer, createGPUBuffer, createProjectionView, initGPU, c
 //import { Cartridge } from './cartridge';
 import { NESGameEngine } from './nes';
 import { Key } from './graphics';
+import flower from './rom/flower-watercolor-red.png';
+import no from './rom/red-no-smoke.webp';
+import rom from './rom/nestest.nes';
 
 //console.log('NES Emultaor')
 //console.log(navigator.gpu)
 
-let imageData: ImageData;
+let imageData: ImageBitmap;
 let romData: Uint8Array;
 let adapter: GPUAdapter;
 let device: GPUDevice;
@@ -47,59 +50,66 @@ window.addEventListener('keydown', e => {
 })
 
 window.addEventListener('keyup', e => {
-    //console.log('KeyUp', e.key)
-
     if (!nesEngine) return;
 
     nesEngine.setKeyboardState(e.key, { bHeld: false, bPressed: false, bReleased: true })
 })
 
-input.addEventListener('change', async (e) => {
+/* input.addEventListener('change', async (e) => {
     const file = input.files!.item(0);
     romData = <Uint8Array>(await input.files![0].arrayBuffer());
-    
-    //console.log(e);
-    //console.log(input, input.files);
-    //console.log(romData);
 
     await init().catch(console.error)
-})
+}) */
 
-imageInput.addEventListener('change', async (e) => {
+/* imageInput.addEventListener('change', async (e) => {
     const file = imageInput.files![0];
     const encodedData = <Uint8ClampedArray>(await file.arrayBuffer());
     const ending = imageInput.files![0].name.split('.')[1];
     const init = { type: `image/${ending}`, data: encodedData };
     const img = document.createElement('img');
     const imgUrl = URL.createObjectURL(file);
+    const image = new Image();
 
     img.src = imgUrl;
+    image.src = flower;
     await img.decode();
-    
+
+    console.log('Image -- ', image);
+
+    imageData = await createImageBitmap(image);
+
+    const cnstrctr: any = (<any>window).ImageDecoder;
+    const decoder = new cnstrctr(init);
+    const decodedData = await decoder.decode({ frameIndex: 0 });
+    console.log('Image Data', decodedData, imageData);
 
     if('ImageDecoder' in window) {
         console.log(window);
         console.log('ImageDecoder');
         
-        const cnstrctr: any = (<any>window).ImageDecoder;
-        const decoder = new cnstrctr(init);
-        const decodedData = await decoder.decode({ frameIndex: 0 });
         const imageFrame = decodedData.image
-        const offCanvas: HTMLCanvasElement = new (<any>window).OffscreenCanvas(imageFrame.codedWidth, imageFrame. codedHeight);
+        const offCanvas: HTMLCanvasElement = new (<any>window).OffscreenCanvas(imageFrame.codedWidth, imageFrame.codedHeight);
         const cxt: CanvasRenderingContext2D = offCanvas.getContext('2d', { alpha: true })!;
 
         cxt.drawImage(imageFrame, 0, 0);
-        imageData = cxt.getImageData(0, 0, imageFrame.codedWidth, imageFrame.codedHeight);
-        console.log('Image Data', decodedData, imageData);
+        //imageData = cxt.getImageData(0, 0, imageFrame.codedWidth, imageFrame.codedHeight);
+
+        const url = 'https://www.publicdomainpictures.net/pictures/290000/velka/flower-watercolor-red.png';
+        //const res = await fetch(url);
+        //const img = await res.blob();
+
+        
     }
-})
+}) */
 
 const createTriangle = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasContext, format: GPUTextureFormat) => {
     const module = device.createShaderModule({ code: shader })
     const vertex: GPUVertexState = { module, entryPoint: 'vs_main' }
     const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] }
     const primitive: GPUPrimitiveState = { topology: 'triangle-list' }
-    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive }
+    const layout: GPUPipelineLayout = <GPUPipelineLayout>{}
+    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, layout }
     const commandEncoder = device. createCommandEncoder()
     const view = context.getCurrentTexture().createView()
     const colorAttachment: GPURenderPassColorAttachment = { view, clearValue: { r: 0.2, g: 0.247, b: 0.314, a: 1.0 }, loadOp: 'clear', storeOp: 'store' }
@@ -147,7 +157,8 @@ const createSquare = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvas
     const vertex: GPUVertexState = { module, entryPoint: 'vs_main', buffers: vertexBuffers }
     const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] }
     const primitive: GPUPrimitiveState = { topology: 'triangle-list' }
-    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive }
+    const layout: GPUPipelineLayout = <GPUPipelineLayout>{}
+    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, layout }
     const commandEncoder = device. createCommandEncoder()
     const view = context.getCurrentTexture().createView()
     const colorAttachment: GPURenderPassColorAttachment = { view, clearValue: { r: 0.2, g: 0.247, b: 0.314, a: 1.0 }, loadOp: 'clear', storeOp: 'store' }
@@ -181,8 +192,9 @@ const createCube = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasCo
     const vertex: GPUVertexState = { module, entryPoint: 'vs_main', buffers: vertexBuffers }
     const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] }
     const primitive: GPUPrimitiveState = { topology: 'triangle-list' }
+    const layout: GPUPipelineLayout = <GPUPipelineLayout>{}
     const depthStencil: GPUDepthStencilState = { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' }
-    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, depthStencil }
+    const pipelineDescriptor: GPURenderPipelineDescriptor = { vertex, fragment, primitive, layout, depthStencil }
     const pipeline = device.createRenderPipeline(pipelineDescriptor)
 
     const canvas = <HTMLCanvasElement>context.canvas
@@ -247,6 +259,13 @@ const createCube = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasCo
 };
 
 const init = async () => {
+    const image = new Image()
+    image.src = flower
+    await image.decode()
+
+    romData = new Uint8Array(await (await fetch(rom)).arrayBuffer())
+    imageData = await createImageBitmap(image)
+    
     if (!adapter) adapter = <GPUAdapter>(await navigator.gpu.requestAdapter())
     if (!adapter) throw new Error('No GPU adpters are available')
     
@@ -278,5 +297,5 @@ const init = async () => {
     console.log('Screean Size', nesEngine.screenWidth(), nesEngine.screenHeight())
 };
 
-//init().catch(console.error)
+init().catch(console.error)
 

@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
+    "baseUrl": "./src",
     "noImplicitAny": true,
-    "module": "es6",
+    "module": "CommonJS",
     "target": "es5",
     "moduleResolution": "node",
     //"importHelpers": true,
@@ -16,5 +17,6 @@
     "allowJs": true,
     "typeRoots": [ "node_modules/@webgpu/types", "node_modules/@types" ]
   },
-  "files": ["src/index.ts"]
+  "files": ["src/index.ts"],
+  "include": ["index.d.ts"]
 }
