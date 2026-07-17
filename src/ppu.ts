@@ -4,7 +4,7 @@ import { MIRROR } from "./mapper/mapper";
 
 export class Ppu {
   private tblName: [Uint8Array, Uint8Array];
-  private tblPattern: [Uint8Array, Uint8Array];
+  private tblPattern: [Uint8Array, Uint8Array]; //Not necessary
   private tblPalette: Uint8Array;
   private palScreen: Pixel[];
 
@@ -25,22 +25,22 @@ export class Ppu {
   private control: PPUCtrl;
   private vRamAddress: LoopyRegister;
   private tRamAddress: LoopyRegister;
-  private fineX: Uint8Array[0] = 0x00;
-  private addressLatch: Uint8Array[0] = 0x00;
-  private ppuDataBuffer: Uint8Array[0] = 0x00;
-  private scanline: Uint16Array[0] = 0;
-  private cycle: Uint16Array[0] = 0;
+  private fineX: Uint8Array = new Uint8Array(1);
+  private addressLatch: Uint8Array = new Uint8Array(1);
+  private ppuDataBuffer: Uint8Array = new Uint8Array(1);
+  private scanline: Uint16Array = new Uint16Array(1);
+  private cycle: Uint16Array = new Uint16Array(1);
   private oddFrame: boolean = false;
-  private bgNextTileId: Uint8Array[0] = 0x00;
-  private bgNextTileAttrib: Uint8Array[0] = 0x00;
-  private bgNextTileLsb: Uint8Array[0] = 0x00;
-  private bgNextTileMsb: Uint8Array[0] = 0x00;
-  private bgShifterPatternLo: Uint16Array[0] = 0x0000;
-  private bgShifterPatternHi: Uint16Array[0] = 0x0000;
-  private bgShifterAttribLo: Uint16Array[0] = 0x0000;
-  private bgShifterAttribHi: Uint16Array[0] = 0x0000;
-  private OAM: ObjectAttributeEntry[];
-  private oamAddress: Uint8Array[0] = 0x00;
+  private bgNextTileId: Uint8Array = new Uint8Array(1);
+  private bgNextTileAttrib: Uint8Array = new Uint8Array(1);
+  private bgNextTileLsb: Uint8Array = new Uint8Array(1);
+  private bgNextTileMsb: Uint8Array = new Uint8Array(1);
+  private bgShifterPatternLo: Uint16Array = new Uint16Array(1);
+  private bgShifterPatternHi: Uint16Array = new Uint16Array(1);
+  private bgShifterAttribLo: Uint16Array = new Uint16Array(1);
+  private bgShifterAttribHi: Uint16Array = new Uint16Array(1);
+  public OAM: ObjectAttributeEntry[];
+  private oamAddress: Uint8Array = new Uint8Array(1);
   private spriteScanline: ObjectAttributeEntry[];
   private spriteCount: Uint8Array[0];
   private spriteShifterPatternLo: Uint8Array;
@@ -59,11 +59,11 @@ export class Ppu {
     this.tblPalette = new Uint8Array(32);
 
     this.cart = <Cartridge><unknown>undefined;
-    this.status = { unused: 0, sprite_zero_hit: 0, sprite_overflow: 0, vertical_blank: 0, reg: 0 };
-    this.mask = { grayscale: 0, render_background_left: 0, render_sprites_left: 0, render_background: 0, render_sprites: 0, enhance_red: 0, enhance_green: 0, enhance_blue: 0, reg: 0 };
-    this.control = { nametable_x: 0, nametable_y: 0, increment_mode: 0, pattern_sprite: 0, pattern_background: 0, sprite_size: 0, slave_mode: 0, enable_nmi: 0, reg: 0 };
-    this.vRamAddress = { coarse_x: 0,coarse_y: 0,nametable_x: 0,nametable_y: 0,fine_y: 0,unused: 0, reg: 0 };
-    this.tRamAddress = { coarse_x: 0, coarse_y: 0, nametable_x: 0, nametable_y: 0, fine_y: 0, unused: 0, reg: 0 };
+    this.status = new PPUStatus();
+    this.mask = new PPUMask();
+    this.control = new PPUCtrl();
+    this.vRamAddress = new LoopyRegister();
+    this.tRamAddress = new LoopyRegister();
     this.spriteScanline = [];
     this.spriteCount = 0;
 
@@ -145,7 +145,7 @@ export class Ppu {
     const oam: ObjectAttributeEntry[] = [];
 
     for (let x = 0; x < 64; x++) {
-      oam.push({ attribute: 0, id: 0, x: 0, y: 0 });
+      oam.push(new ObjectAttributeEntry());
     }
 
     return oam;
@@ -188,23 +188,23 @@ export class Ppu {
   }
 
   getColorFromPaletteRam(palette: Uint8Array[0], pixel: Uint8Array[0]): Pixel {
-    //console.log(this);
     return this.palScreen[this.ppuRead(0x3f00 + (palette << 2) + pixel) & 0x3f];
   }
 
   cpuRead(address: Uint16Array[0], readOnly: boolean = false): Uint8Array[0] {
+    //console.log('PPU::cpuRead()', 'Address:', address, 'Read Only:', readOnly);
     let data = 0x00;
 
     if (readOnly) {
       switch (address) {
         case 0x0000: // Control
-          data = this.control.reg;
+          data = this.control.reg[0];
           break;
         case 0x0001: // Mask
-          data = this.mask.reg;
+          data = this.mask.reg[0];
           break;
         case 0x0002: // Status
-          data = this.status.reg;
+          data = this.status.reg[0];
           break;
         case 0x0003: // OAM Address
           break;
@@ -226,18 +226,23 @@ export class Ppu {
           break;
 
         case 0x0002:
-          data = (this.status.reg & 0xe0) | (this.ppuDataBuffer & 0x1f);
+          data = (this.status.reg[0] & 0xe0) | (this.ppuDataBuffer[0] & 0x1f);
+          //console.log('PPU::status', this.status, this.ppuDataBuffer, data);
 
-          this.status.vertical_blank = 0;
+          this.status.vertical_blank = 0x00;
 
-          this.addressLatch = 0;
+          this.addressLatch[0] = 0x00;
           break;
 
         case 0x0003:
           break;
 
         case 0x0004:
-          //data = this.OAM[this.oamAddress];
+          /* if (this.oamAddress[0] > 63)  */console.log('OAM Address', this.oamAddress);
+          const oamIndex = this.oamAddress[0] >> 2;
+          const regIndex = this.oamAddress[0] % 4;
+          //data = this.OAM[this.oamAddress[0]].reg[0];
+          data = this.OAM[oamIndex].reg[regIndex];
           break;
 
         case 0x0005:
@@ -247,11 +252,11 @@ export class Ppu {
           break;
 
         case 0x0007:
-          data = this.ppuDataBuffer;
-          this.ppuDataBuffer = this.ppuRead(this.vRamAddress.reg);
+          data = this.ppuDataBuffer[0];
+          this.ppuDataBuffer[0] = this.ppuRead(this.vRamAddress.reg[0]);
 
-          if (this.vRamAddress.reg >= 0x3f00) data = this.ppuDataBuffer;
-          this.vRamAddress.reg += this.control.increment_mode ? 32 : 1;
+          if (this.vRamAddress.reg[0] >= 0x3f00) data = this.ppuDataBuffer[0];
+          this.vRamAddress.reg[0] += this.control.increment_mode ? 0x0020 : 0x0001;
           break;
       }
     }
@@ -262,91 +267,97 @@ export class Ppu {
   cpuWrite(address: Uint16Array[0], data: Uint8Array[0]): void {
     switch (address) {
       case 0x0000:
-        this.control.reg = data;
+        this.control.reg[0] = data;
         this.tRamAddress.nametable_x = this.control.nametable_x;
         this.tRamAddress.nametable_y = this.control.nametable_y;
         break;
       case 0x0001: // Mask
-        this.mask.reg = data;
+        this.mask.reg[0] = data;
         break;
       case 0x0002: // Status
         break;
       case 0x0003: // OAM Address
-        this.oamAddress = data;
+        this.oamAddress[0] = data;
         break;
       case 0x0004: // OAM Data
-        //this.OAM[this.oamAddress] = data;
+        {
+          const oamIndex = this.oamAddress[0] >> 2;
+          const regIndex = this.oamAddress[0] % 4;
+          this.OAM[oamIndex].reg[regIndex] = data;
+          this.oamAddress[0]++;
+        }
         break;
       case 0x0005: // Scroll
-        if (this.addressLatch == 0) {
-          this.fineX = data & 0x07;
+        if (this.addressLatch[0] === 0x00) {
+          this.fineX[0] = data & 0x07;
           this.tRamAddress.coarse_x = data >> 3;
-          this.addressLatch = 1;
+          this.addressLatch[0] = 0x01;
         } else {
           this.tRamAddress.fine_y = data & 0x07;
           this.tRamAddress.coarse_y = data >> 3;
-          this.addressLatch = 0;
+          this.addressLatch[0] = 0x00;
         }
         break;
       case 0x0006:
-        if (this.addressLatch == 0) {
-          this.tRamAddress.reg =
-            ((data & 0x3f) << 8) | (this.tRamAddress.reg & 0x00ff);
-          this.addressLatch = 1;
+        if (this.addressLatch[0] === 0x00) {
+          this.tRamAddress.reg[0] =
+            ((data & 0x3f) << 8) | (this.tRamAddress.reg[0] & 0x00ff);
+          this.addressLatch[0] = 0x01;
         } else {
-          this.tRamAddress.reg = (this.tRamAddress.reg & 0xff00) | data;
-          this.vRamAddress = this.tRamAddress;
-          this.addressLatch = 0;
+          this.tRamAddress.reg[0] = (this.tRamAddress.reg[0] & 0xff00) | data;
+          this.vRamAddress.reg[0] = this.tRamAddress.reg[0];
+          this.addressLatch[0] = 0x00;
         }
         break;
       case 0x0007: // PPU Data
-        this.ppuWrite(this.vRamAddress.reg, data);
-        this.vRamAddress.reg += this.control.increment_mode ? 32 : 1;
+        this.ppuWrite(this.vRamAddress.reg[0], data);
+        this.vRamAddress.reg[0] += this.control.increment_mode ? 0x0020 : 0x0001;
         break;
     }
   }
 
   ppuRead(address: Uint16Array[0], readOnly: boolean = false): Uint8Array[0] {
-    let data = 0x00;
     address &= 0x3fff;
+
+    const d = { data: 0x00 };
 
     //console.log('PPU Read', this.cart, this);
 
-    if (this.cart.ppuRead(address, data)) {
+    if (this.cart.ppuRead(address, d)) {
     } else if (address >= 0x0000 && address <= 0x1fff) {
-      data = this.tblPattern[(address & 0x1000) >> 12][address & 0x0fff];
+      d.data = this.tblPattern[(address & 0x1000) >> 12][address & 0x0fff];
     } else if (address >= 0x2000 && address <= 0x3eff) {
       address &= 0x0fff;
 
       if (this.cart.mirror() === MIRROR.VERTICAL) {
         if (address >= 0x0000 && address <= 0x03ff)
-          data = this.tblName[0][address & 0x03ff];
+          d.data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0400 && address <= 0x07ff)
-          data = this.tblName[1][address & 0x03ff];
+          d.data = this.tblName[1][address & 0x03ff];
         if (address >= 0x0800 && address <= 0x0bff)
-          data = this.tblName[0][address & 0x03ff];
+          d.data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0c00 && address <= 0x0fff)
-          data = this.tblName[1][address & 0x03ff];
+          d.data = this.tblName[1][address & 0x03ff];
       } else if (this.cart.mirror() === MIRROR.HORIZONTAL) {
         if (address >= 0x0000 && address <= 0x03ff)
-          data = this.tblName[0][address & 0x03ff];
+          d.data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0400 && address <= 0x07ff)
-          data = this.tblName[0][address & 0x03ff];
+          d.data = this.tblName[0][address & 0x03ff];
         if (address >= 0x0800 && address <= 0x0bff)
-          data = this.tblName[1][address & 0x03ff];
+          d.data = this.tblName[1][address & 0x03ff];
         if (address >= 0x0c00 && address <= 0x0fff)
-          data = this.tblName[1][address & 0x03ff];
+          d.data = this.tblName[1][address & 0x03ff];
       }
     } else if (address >= 0x3f00 && address <= 0x3fff) {
       address &= 0x001f;
-      if (address == 0x0010) address = 0x0000;
-      if (address == 0x0014) address = 0x0004;
-      if (address == 0x0018) address = 0x0008;
-      if (address == 0x001c) address = 0x000c;
-      data = this.tblPalette[address] & (this.mask.grayscale ? 0x30 : 0x3f);
+      if (address === 0x0010) address = 0x0000;
+      if (address === 0x0014) address = 0x0004;
+      if (address === 0x0018) address = 0x0008;
+      if (address === 0x001c) address = 0x000c;
+      d.data = this.tblPalette[address] & (this.mask.grayscale ? 0x30 : 0x3f);
     }
 
-    return data;
+    return d.data;
   }
 
   ppuWrite(address: Uint16Array[0], data: Uint8Array[0]): void {
@@ -378,10 +389,10 @@ export class Ppu {
       }
     } else if (address >= 0x3f00 && address <= 0x3fff) {
       address &= 0x001f;
-      if (address == 0x0010) address = 0x0000;
-      if (address == 0x0014) address = 0x0004;
-      if (address == 0x0018) address = 0x0008;
-      if (address == 0x001c) address = 0x000c;
+      if (address === 0x0010) address = 0x0000;
+      if (address === 0x0014) address = 0x0004;
+      if (address === 0x0018) address = 0x0008;
+      if (address === 0x001c) address = 0x000c;
       this.tblPalette[address] = data;
     }
   }
@@ -393,8 +404,8 @@ export class Ppu {
   clock(): void {
     const IncrementScrollX = () => {
       if (this.mask.render_background || this.mask.render_sprites) {
-        if (this.vRamAddress.coarse_x == 31) {
-          this.vRamAddress.coarse_x = 0;
+        if (this.vRamAddress.coarse_x === 0x001f) {
+          this.vRamAddress.coarse_x = 0x0000;
           this.vRamAddress.nametable_x = ~this.vRamAddress.nametable_x;
         } else {
           this.vRamAddress.coarse_x++;
@@ -407,13 +418,13 @@ export class Ppu {
         if (this.vRamAddress.fine_y < 7) {
           this.vRamAddress.fine_y++;
         } else {
-          this.vRamAddress.fine_y = 0;
+          this.vRamAddress.fine_y = 0x0000;
 
-          if (this.vRamAddress.coarse_y == 29) {
-            this.vRamAddress.coarse_y = 0;
+          if (this.vRamAddress.coarse_y === 29) {
+            this.vRamAddress.coarse_y = 0x0000;
             this.vRamAddress.nametable_y = ~this.vRamAddress.nametable_y;
-          } else if (this.vRamAddress.coarse_y == 31) {
-            this.vRamAddress.coarse_y = 0;
+          } else if (this.vRamAddress.coarse_y == 0x001f) {
+            this.vRamAddress.coarse_y = 0x0000;
           } else {
             this.vRamAddress.coarse_y++;
           }
@@ -437,28 +448,28 @@ export class Ppu {
     };
 
     const LoadBackgroundShifters = () => {
-      this.bgShifterPatternLo =
-        (this.bgShifterPatternLo & 0xff00) | this.bgNextTileLsb;
-      this.bgShifterPatternHi =
-        (this.bgShifterPatternHi & 0xff00) | this.bgNextTileMsb;
-      this.bgShifterAttribLo =
-        (this.bgShifterAttribLo & 0xff00) |
-        (this.bgNextTileAttrib & 0b01 ? 0xff : 0x00);
-      this.bgShifterAttribHi =
-        (this.bgShifterAttribHi & 0xff00) |
-        (this.bgNextTileAttrib & 0b10 ? 0xff : 0x00);
+      this.bgShifterPatternLo[0] =
+        (this.bgShifterPatternLo[0] & 0xff00) | this.bgNextTileLsb[0];
+      this.bgShifterPatternHi[0] =
+        (this.bgShifterPatternHi[0] & 0xff00) | this.bgNextTileMsb[0];
+      this.bgShifterAttribLo[0] =
+        (this.bgShifterAttribLo[0] & 0xff00) |
+        (this.bgNextTileAttrib[0] & 0b01 ? 0xff : 0x00);
+      this.bgShifterAttribHi[0] =
+        (this.bgShifterAttribHi[0] & 0xff00) |
+        (this.bgNextTileAttrib[0] & 0b10 ? 0xff : 0x00);
     };
 
     const UpdateShifters = () => {
       if (this.mask.render_background) {
-        this.bgShifterPatternLo <<= 1;
-        this.bgShifterPatternHi <<= 1;
+        this.bgShifterPatternLo[0] <<= 1;
+        this.bgShifterPatternHi[0] <<= 1;
 
-        this.bgShifterAttribLo <<= 1;
-        this.bgShifterAttribHi <<= 1;
+        this.bgShifterAttribLo[0] <<= 1;
+        this.bgShifterAttribHi[0] <<= 1;
       }
 
-      if (this.mask.render_sprites && this.cycle >= 1 && this.cycle < 258) {
+      if (this.mask.render_sprites && this.cycle[0] >= 1 && this.cycle[0] < 258) {
         for (let i = 0; i < this.spriteCount; i++) {
           if (this.spriteScanline[i].x > 0) {
             this.spriteScanline[i].x--;
@@ -470,20 +481,20 @@ export class Ppu {
       }
     };
 
-    if (this.scanline >= -1 && this.scanline < 240) {
+    if (this.scanline[0] >= -1 && this.scanline[0] < 240) {
       if (
-        this.scanline == 0 &&
-        this.cycle == 0 &&
+        this.scanline[0] == 0 &&
+        this.cycle[0] == 0 &&
         this.oddFrame &&
         (this.mask.render_background || this.mask.render_sprites)
       ) {
-        this.cycle = 1;
+        this.cycle[0] = 1;
       }
 
-      if (this.scanline == -1 && this.cycle == 1) {
-        this.status.vertical_blank = 0;
-        this.status.sprite_overflow = 0;
-        this.status.sprite_zero_hit = 0;
+      if (this.scanline[0] == -1 && this.cycle[0] == 1) {
+        this.status.vertical_blank = 0x00;
+        this.status.sprite_overflow = 0x00;
+        this.status.sprite_zero_hit = 0x00;
 
         for (let i = 0; i < 8; i++) {
           this.spriteShifterPatternLo[i] = 0;
@@ -492,21 +503,21 @@ export class Ppu {
       }
 
       if (
-        (this.cycle >= 2 && this.cycle < 258) ||
-        (this.cycle >= 321 && this.cycle < 338)
+        (this.cycle[0] >= 2 && this.cycle[0] < 258) ||
+        (this.cycle[0] >= 321 && this.cycle[0] < 338)
       ) {
         UpdateShifters();
 
-        switch ((this.cycle - 1) % 8) {
+        switch ((this.cycle[0] - 1) % 8) {
           case 0:
             LoadBackgroundShifters();
 
-            this.bgNextTileId = this.ppuRead(
-              0x2000 | (this.vRamAddress.reg & 0x0fff)
+            this.bgNextTileId[0] = this.ppuRead(
+              0x2000 | (this.vRamAddress.reg[0] & 0x0fff)
             );
             break;
           case 2:
-            this.bgNextTileAttrib = this.ppuRead(
+            this.bgNextTileAttrib[0] = this.ppuRead(
               0x23c0 |
                 (this.vRamAddress.nametable_y << 11) |
                 (this.vRamAddress.nametable_x << 10) |
@@ -514,26 +525,26 @@ export class Ppu {
                 (this.vRamAddress.coarse_x >> 2)
             );
 
-            if (this.vRamAddress.coarse_y & 0x02) this.bgNextTileAttrib >>= 4;
-            if (this.vRamAddress.coarse_x & 0x02) this.bgNextTileAttrib >>= 2;
-            this.bgNextTileAttrib &= 0x03;
+            if (this.vRamAddress.coarse_y & 0x0002) this.bgNextTileAttrib[0] >>= 4;
+            if (this.vRamAddress.coarse_x & 0x0002) this.bgNextTileAttrib[0] >>= 2;
+            this.bgNextTileAttrib[0] &= 0x03;
             break;
 
           case 4:
-            this.bgNextTileLsb = this.ppuRead(
+            this.bgNextTileLsb[0] = this.ppuRead(
               (this.control.pattern_background << 12) +
-                (this.bgNextTileId << 4) +
+                (this.bgNextTileId[0] << 4) +
                 this.vRamAddress.fine_y +
-                0
+                0x0000
             );
 
             break;
           case 6:
-            this.bgNextTileMsb = this.ppuRead(
+            this.bgNextTileMsb[0] = this.ppuRead(
               (this.control.pattern_background << 12) +
-                (this.bgNextTileId << 4) +
+                (this.bgNextTileId[0] << 4) +
                 this.vRamAddress.fine_y +
-                8
+                0x0008
             );
             break;
           case 7:
@@ -542,28 +553,28 @@ export class Ppu {
         }
       }
 
-      if (this.cycle == 256) {
+      if (this.cycle[0] == 256) {
         IncrementScrollY();
       }
 
-      if (this.cycle == 257) {
+      if (this.cycle[0] == 257) {
         LoadBackgroundShifters();
         TransferAddressX();
       }
 
-      if (this.cycle == 338 || this.cycle == 340) {
-        this.bgNextTileId = this.ppuRead(
-          0x2000 | (this.vRamAddress.reg & 0x0fff)
+      if (this.cycle[0] == 338 || this.cycle[0] == 340) {
+        this.bgNextTileId[0] = this.ppuRead(
+          0x2000 | (this.vRamAddress.reg[0] & 0x0fff)
         );
       }
 
-      if (this.scanline == -1 && this.cycle >= 280 && this.cycle < 305) {
+      if (this.scanline[0] == -1 && this.cycle[0] >= 280 && this.cycle[0] < 305) {
         TransferAddressY();
       }
 
-      if (this.cycle === 257 && this.scanline >= 0) {
+      if (this.cycle[0] === 257 && this.scanline[0] >= 0) {
         this.spriteScanline.fill(
-          { x: 0xff, attribute: 0xff, id: 0xff, y: 0xff },
+          new ObjectAttributeEntry(),
           0,
           8
         ) /* sizeof(sObjectAttributeEntry) */;
@@ -580,11 +591,11 @@ export class Ppu {
         this.spriteZeroHitPossible = false;
 
         while (nOAMEntry < 64 && this.spriteCount < 9) {
-          let diff = this.scanline - this.OAM[nOAMEntry].y;
+          let diff = this.scanline[0] - this.OAM[nOAMEntry].y;
 
           if (
             diff >= 0 &&
-            diff < (this.control.sprite_size ? 16 : 8) &&
+            diff < (this.control.sprite_size ? 0x10 : 0x08) &&
             this.spriteCount < 8
           ) {
             if (this.spriteCount < 8) {
@@ -600,10 +611,10 @@ export class Ppu {
           nOAMEntry++;
         }
 
-        this.status.sprite_overflow = this.spriteCount >= 8 ? 1 : 0;
+        this.status.sprite_overflow = this.spriteCount >= 0x08 ? 0x01 : 0x00;
       }
 
-      if (this.cycle === 340) {
+      if (this.cycle[0] === 340) {
         for (let i = 0; i < this.spriteCount; i++) {
           let sprite_pattern_bits_lo, sprite_pattern_bits_hi;
           let sprite_pattern_addr_lo, sprite_pattern_addr_hi;
@@ -613,42 +624,42 @@ export class Ppu {
               sprite_pattern_addr_lo =
                 (this.control.pattern_sprite << 12) |
                 (this.spriteScanline[i].id << 4) |
-                (this.scanline - this.spriteScanline[i].y);
+                (this.scanline[0] - this.spriteScanline[i].y);
             } else {
               sprite_pattern_addr_lo =
                 (this.control.pattern_sprite << 12) |
                 (this.spriteScanline[i].id << 4) |
-                (7 - (this.scanline - this.spriteScanline[i].y));
+                (7 - (this.scanline[0] - this.spriteScanline[i].y));
             }
           } else {
             if (!(this.spriteScanline[i].attribute & 0x80)) {
-              if (this.scanline - this.spriteScanline[i].y < 8) {
+              if (this.scanline[0] - this.spriteScanline[i].y < 8) {
                 sprite_pattern_addr_lo =
                   ((this.spriteScanline[i].id & 0x01) << 12) | // Which Pattern Table? 0KB or 4KB offset
                   ((this.spriteScanline[i].id & 0xfe) << 4) | // Which Cell? Tile ID * 16 (16 bytes per tile)
-                  ((this.scanline - this.spriteScanline[i].y) & 0x07); // Which Row in cell? (0->7)
+                  ((this.scanline[0] - this.spriteScanline[i].y) & 0x07); // Which Row in cell? (0->7)
               } else {
                 sprite_pattern_addr_lo =
                   ((this.spriteScanline[i].id & 0x01) << 12) | // Which Pattern Table? 0KB or 4KB offset
                   (((this.spriteScanline[i].id & 0xfe) + 1) << 4) | // Which Cell? Tile ID * 16 (16 bytes per tile)
-                  ((this.scanline - this.spriteScanline[i].y) & 0x07); // Which Row in cell? (0->7)
+                  ((this.scanline[0] - this.spriteScanline[i].y) & 0x07); // Which Row in cell? (0->7)
               }
             } else {
-              if (this.scanline - this.spriteScanline[i].y < 8) {
+              if (this.scanline[0] - this.spriteScanline[i].y < 8) {
                 sprite_pattern_addr_lo =
                   ((this.spriteScanline[i].id & 0x01) << 12) | // Which Pattern Table? 0KB or 4KB offset
                   (((this.spriteScanline[i].id & 0xfe) + 1) << 4) | // Which Cell? Tile ID * 16 (16 bytes per tile)
-                  ((7 - (this.scanline - this.spriteScanline[i].y)) & 0x07); // Which Row in cell? (0->7)
+                  ((7 - (this.scanline[0] - this.spriteScanline[i].y)) & 0x07); // Which Row in cell? (0->7)
               } else {
                 sprite_pattern_addr_lo =
                   ((this.spriteScanline[i].id & 0x01) << 12) | // Which Pattern Table? 0KB or 4KB offset
                   ((this.spriteScanline[i].id & 0xfe) << 4) | // Which Cell? Tile ID * 16 (16 bytes per tile)
-                  ((7 - (this.scanline - this.spriteScanline[i].y)) & 0x07); // Which Row in cell? (0->7)
+                  ((7 - (this.scanline[0] - this.spriteScanline[i].y)) & 0x07); // Which Row in cell? (0->7)
               }
             }
           }
 
-          sprite_pattern_addr_hi = sprite_pattern_addr_lo + 8;
+          sprite_pattern_addr_hi = sprite_pattern_addr_lo + 0x08;
 
           sprite_pattern_bits_lo = this.ppuRead(sprite_pattern_addr_lo);
           sprite_pattern_bits_hi = this.ppuRead(sprite_pattern_addr_hi);
@@ -671,12 +682,12 @@ export class Ppu {
       }
     }
 
-    if (this.scanline === 240) {
+    if (this.scanline[0] === 240) {
     }
 
-    if (this.scanline >= 241 && this.scanline < 261) {
-      if (this.scanline === 241 && this.cycle === 1) {
-        this.status.vertical_blank = 1;
+    if (this.scanline[0] >= 241 && this.scanline[0] < 261) {
+      if (this.scanline[0] === 241 && this.cycle[0] === 1) {
+        this.status.vertical_blank = 0x01;
 
         if (this.control.enable_nmi) this.nmi = true;
       }
@@ -686,16 +697,16 @@ export class Ppu {
     let bg_palette = 0x00; // The 3-bit index of the palette the pixel indexes
 
     if (this.mask.render_background) {
-      if (this.mask.render_background_left || this.cycle >= 9) {
-        let bit_mux = 0x8000 >> this.fineX;
+      if (this.mask.render_background_left || this.cycle[0] >= 9) {
+        let bit_mux = 0x8000 >> this.fineX[0];
 
-        let p0_pixel = (this.bgShifterPatternLo & bit_mux) > 0 ? 1 : 0;
-        let p1_pixel = (this.bgShifterPatternHi & bit_mux) > 0 ? 1 : 0;
+        let p0_pixel = (this.bgShifterPatternLo[0] & bit_mux) > 0 ? 1 : 0;
+        let p1_pixel = (this.bgShifterPatternHi[0] & bit_mux) > 0 ? 1 : 0;
 
         bg_pixel = (p1_pixel << 1) | p0_pixel;
 
-        let bg_pal0 = (this.bgShifterAttribLo & bit_mux) > 0 ? 1 : 0;
-        let bg_pal1 = (this.bgShifterAttribHi & bit_mux) > 0 ? 1 : 0;
+        let bg_pal0 = (this.bgShifterAttribLo[0] & bit_mux) > 0 ? 1 : 0;
+        let bg_pal1 = (this.bgShifterAttribHi[0] & bit_mux) > 0 ? 1 : 0;
         bg_palette = (bg_pal1 << 1) | bg_pal0;
       }
     }
@@ -705,7 +716,7 @@ export class Ppu {
     let fg_priority = 0x00; // A bit of the sprite attribute indicates if its
 
     if (this.mask.render_sprites) {
-      if (this.mask.render_sprites_left || this.cycle >= 9) {
+      if (this.mask.render_sprites_left || this.cycle[0] >= 9) {
         this.spriteZeroBeingRendered = false;
 
         for (let i = 0; i < this.spriteCount; i++) {
@@ -759,12 +770,12 @@ export class Ppu {
           if (
             !(this.mask.render_background_left | this.mask.render_sprites_left)
           ) {
-            if (this.cycle >= 9 && this.cycle < 258) {
-              this.status.sprite_zero_hit = 1;
+            if (this.cycle[0] >= 9 && this.cycle[0] < 258) {
+              this.status.sprite_zero_hit = 0x01;
             }
           } else {
-            if (this.cycle >= 1 && this.cycle < 258) {
-              this.status.sprite_zero_hit = 1;
+            if (this.cycle[0] >= 1 && this.cycle[0] < 258) {
+              this.status.sprite_zero_hit = 0x01;
             }
           }
         }
@@ -772,23 +783,23 @@ export class Ppu {
     }
 
     this.sprScreen.setPixel(
-      this.cycle - 1,
-      this.scanline,
+      this.cycle[0] - 1,
+      this.scanline[0],
       this.getColorFromPaletteRam(palette, pixel)
     );
 
     // Advance renderer - it never stops, it's relentless
-    this.cycle++;
+    this.cycle[0]++;
     if (this.mask.render_background || this.mask.render_sprites)
-      if (this.cycle == 260 && this.scanline < 240) {
+      if (this.cycle[0] == 260 && this.scanline[0] < 240) {
         this.cart.getMapper().scanline();
       }
 
-    if (this.cycle >= 341) {
-      this.cycle = 0;
-      this.scanline++;
-      if (this.scanline >= 261) {
-        this.scanline = -1;
+    if (this.cycle[0] >= 341) {
+      this.cycle[0] = 0;
+      this.scanline[0]++;
+      if (this.scanline[0] >= 261) {
+        this.scanline[0] = -1;
         this.frameComplete = true;
         this.oddFrame = !this.oddFrame;
       }
@@ -796,74 +807,105 @@ export class Ppu {
   }
 
   reset(): void {
-    this.fineX = 0x00;
-    this.addressLatch = 0x00;
-    this.ppuDataBuffer = 0x00;
-    this.scanline = 0;
-    this.cycle = 0;
-    this.bgNextTileId = 0x00;
-    this.bgNextTileAttrib = 0x00;
-    this.bgNextTileLsb = 0x00;
-    this.bgNextTileMsb = 0x00;
-    this.bgShifterPatternLo = 0x0000;
-    this.bgShifterPatternHi = 0x0000;
-    this.bgShifterAttribLo = 0x0000;
-    this.bgShifterAttribHi = 0x0000;
-    this.status.reg = 0x00;
-    this.mask.reg = 0x00;
-    this.control.reg = 0x00;
-    this.vRamAddress.reg = 0x0000;
-    this.tRamAddress.reg = 0x0000;
+    this.fineX[0] = 0x00;
+    this.addressLatch[0] = 0x00;
+    this.ppuDataBuffer[0] = 0x00;
+    this.scanline[0] = 0;
+    this.cycle[0] = 0;
+    this.bgNextTileId[0] = 0x00;
+    this.bgNextTileAttrib[0] = 0x00;
+    this.bgNextTileLsb[0] = 0x00;
+    this.bgNextTileMsb[0] = 0x00;
+    this.bgShifterPatternLo[0] = 0x0000;
+    this.bgShifterPatternHi[0] = 0x0000;
+    this.bgShifterAttribLo[0] = 0x0000;
+    this.bgShifterAttribHi[0] = 0x0000;
+    this.status.reg[0] = 0x00;
+    this.mask.reg[0] = 0x00;
+    this.control.reg[0] = 0x00;
+    this.vRamAddress.reg[0] = 0x0000;
+    this.tRamAddress.reg[0] = 0x0000;
     this.scanlineTrigger = false;
     this.oddFrame = false;
   }
 }
 
-interface PPUStatus {
-  unused: Uint8Array[0];
-  sprite_overflow: Uint8Array[0];
-  sprite_zero_hit: Uint8Array[0];
-  vertical_blank: Uint8Array[0];
-  reg: Uint8Array[0];
+class PPUStatus {
+  public reg: Uint8Array = new Uint8Array(1);
+
+  get unused(): Uint8Array[0] { return this.reg[0] & 0x1f; }
+  get sprite_overflow(): Uint8Array[0] { return (this.reg[0] & 0x20) >> 5; }
+  get sprite_zero_hit(): Uint8Array[0] { return (this.reg[0] & 0x40) >> 6; }
+  get vertical_blank(): Uint8Array[0] { return (this.reg[0] & 0x80) >> 7; }
+
+  set sprite_overflow(val: Uint8Array[0]) {
+    if (val) this.reg[0] |= 0x20;
+    else this.reg[0] &= ~0x20;
+  }
+  set sprite_zero_hit(val: Uint8Array[0]) {
+    if (val) this.reg[0] |= 0x40;
+    else this.reg[0] &= ~0x40;
+  }
+  set vertical_blank(val: Uint8Array[0]) {
+    if (val) this.reg[0] |= 0x80;
+    else this.reg[0] &= ~0x80;
+  }
 }
 
-interface PPUMask {
-  grayscale: Uint8Array[0];
-  render_background_left: Uint8Array[0];
-  render_sprites_left: Uint8Array[0];
-  render_background: Uint8Array[0];
-  render_sprites: Uint8Array[0];
-  enhance_red: Uint8Array[0];
-  enhance_green: Uint8Array[0];
-  enhance_blue: Uint8Array[0];
-  reg: Uint8Array[0];
+class PPUMask {
+  public reg: Uint8Array = new Uint8Array(1);
+
+  get grayscale(): Uint8Array[0] { return this.reg[0] & 0x01; }
+  get render_background_left(): Uint8Array[0] { return this.reg[0] & 0x02; }
+  get render_sprites_left(): Uint8Array[0] { return this.reg[0] & 0x04; }
+  get render_background(): Uint8Array[0] { return this.reg[0] & 0x08; }
+  get render_sprites(): Uint8Array[0] { return this.reg[0] & 0x10; }
+  get enhance_red(): Uint8Array[0] { return this.reg[0] & 0x20; }
+  get enhance_green(): Uint8Array[0] { return this.reg[0] & 0x40; }
+  get enhance_blue(): Uint8Array[0] { return this.reg[0] & 0x80; }
 }
 
-interface PPUCtrl {
-  nametable_x: Uint8Array[0];
-  nametable_y: Uint8Array[0];
-  increment_mode: Uint8Array[0];
-  pattern_sprite: Uint8Array[0];
-  pattern_background: Uint8Array[0];
-  sprite_size: Uint8Array[0];
-  slave_mode: Uint8Array[0];
-  enable_nmi: Uint8Array[0];
-  reg: Uint8Array[0];
+class PPUCtrl {
+  public reg: Uint8Array = new Uint8Array(1);
+
+  get nametable_x(): Uint8Array[0] { return this.reg[0] & 0x01; }
+  get nametable_y(): Uint8Array[0] { return (this.reg[0] & 0x02) >> 1; }
+  get increment_mode(): Uint8Array[0] { return (this.reg[0] & 0x04) >> 2; }
+  get pattern_sprite(): Uint8Array[0] { return (this.reg[0] & 0x08) >> 3; }
+  get pattern_background(): Uint8Array[0] { return (this.reg[0] & 0x10) >> 4; }
+  get sprite_size(): Uint8Array[0] { return (this.reg[0] & 0x20) >> 5; }
+  get slave_mode(): Uint8Array[0] { return (this.reg[0] & 0x40) >> 6; }
+  get enable_nmi(): Uint8Array[0] { return (this.reg[0] & 0x80) >> 7; }
 }
 
-interface LoopyRegister {
-  coarse_x: Uint16Array[0];
-  coarse_y: Uint16Array[0];
-  nametable_x: Uint16Array[0];
-  nametable_y: Uint16Array[0];
-  fine_y: Uint16Array[0];
-  unused: Uint16Array[0];
-  reg: Uint16Array[0];
+class LoopyRegister {
+  public reg: Uint16Array = new Uint16Array(1);
+
+  get coarse_x(): Uint16Array[0] { return this.reg[0] & 0x001f; }
+  get coarse_y(): Uint16Array[0] { return (this.reg[0] & 0x03e0) >> 5; }
+  get nametable_x(): Uint16Array[0] { return (this.reg[0] & 0x0400) >> 10; }
+  get nametable_y(): Uint16Array[0] { return (this.reg[0] & 0x0800) >> 11; }
+  get fine_y(): Uint16Array[0] { return (this.reg[0] & 0x7000) >> 12; }
+  get unused(): Uint16Array[0] { return (this.reg[0] & 0x8000) >> 15; }
+
+  set coarse_x(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x001f) | (val & 0x001f); }
+  set coarse_y(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x03e0) | ((val & 0x001f) << 5); }
+  set nametable_x(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x0400) | ((val & 0x0001) << 10); }
+  set nametable_y(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x0800) | ((val & 0x0001) << 11); }
+  set fine_y(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x7000) | ((val & 0x0007) << 12); }
+  set unused(val: Uint16Array[0]) { this.reg[0] = (this.reg[0] & ~0x8000) | ((val & 0x0001) << 15); }
 }
 
-interface ObjectAttributeEntry {
-  y: Uint8Array[0];
-  id: Uint8Array[0];
-  attribute: Uint8Array[0];
-  x: Uint8Array[0];
+class ObjectAttributeEntry {
+  public reg: Uint8Array = new Uint8Array(4);
+
+  get y(): Uint8Array[0] { return this.reg[0]; }
+  get id(): Uint8Array[0] { return this.reg[1]; }
+  get attribute(): Uint8Array[0] { return this.reg[2]; }
+  get x(): Uint8Array[0] { return this.reg[3]; }
+
+  set y(val: Uint8Array[0]) { this.reg[0] = val; }
+  set id(val: Uint8Array[0]) { this.reg[1] = val; }
+  set attribute(val: Uint8Array[0]) { this.reg[2] = val; }
+  set x(val: Uint8Array[0]) { this.reg[3] = val; }
 }

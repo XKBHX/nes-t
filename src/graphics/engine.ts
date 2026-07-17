@@ -68,15 +68,27 @@ export abstract class GameEngine {
         this.sAppName = 'Undefined';
         GameEngineExtension.gameEngine = this;
 
-		// State of keyboard		
-	this.pKeyNewState = Array<HWButton>(256).fill({ bPressed: false, bReleased: false, bHeld: false });
-	this.pKeyOldState = Array<HWButton>(256).fill({ bPressed: false, bReleased: false, bHeld: false });
-	this.pKeyboardState = Array<HWButton>(256).fill({ bPressed: false, bReleased: false, bHeld: false });
+		// State of keyboard
+		this.pKeyNewState = [];
+		this.pKeyOldState = [];
+		this.pKeyboardState = [];
 
-	// State of mouse
-	this.pMouseNewState = Array<HWButton>(nMouseButtons).fill({ bPressed: false, bReleased: false, bHeld: false });
-	this.pMouseOldState = Array<HWButton>(nMouseButtons).fill({ bPressed: false, bReleased: false, bHeld: false });
-	this.pMouseState = Array<HWButton>(nMouseButtons).fill({ bPressed: false, bReleased: false, bHeld: false });
+		for (let i = 0; i < 256; i ++) {
+			this.pKeyNewState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+			this.pKeyOldState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+			this.pKeyboardState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+		}
+
+		// State of mouse
+		this.pMouseNewState = [];
+		this.pMouseOldState = [];
+		this.pMouseState = [];
+
+		for (let index = 0; index < nMouseButtons; index++) {	
+			this.pMouseNewState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+			this.pMouseOldState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+			this.pMouseState.push(Object.create({ bPressed: false, bReleased: false, bHeld: false }));
+		}
 
         this.configureSystem();
     }
@@ -168,7 +180,7 @@ export abstract class GameEngine {
     screenHeight(): number { return this.vScreenSize.y; }
     
     getDrawTargetWidth(): number {
-        if (this.pDrawTarget)
+		if (this.pDrawTarget)
 			return this.pDrawTarget.width;
 		else
 			return 0;
@@ -198,11 +210,13 @@ export abstract class GameEngine {
     }
 
     setDrawTarget(target?: Sprite): void {
-        if (target) {
+        console.log('SetDrawTarget', target);
+		if (target) {
 			this.pDrawTarget = target;
 		} else {
 			this.nTargetLayer = 0;
 			this.pDrawTarget = this.vLayers[0].drawTarget.sprite();
+			console.log('SetDrawTarget Layer', this.vLayers[0].drawTarget.sprite());
 		}
     }
 
@@ -706,7 +720,9 @@ export abstract class GameEngine {
     }
     
     drawString(x: number, y: number, sText: string, col: Pixel = WHITE, scale: number = 1) {
-        let sx = 0;
+        if (!sText) return;
+
+		let sx = 0;
 		let sy = 0;
 		let m: PixelMode = this.nPixelMode;
 
@@ -722,7 +738,7 @@ export abstract class GameEngine {
 				sx += 8 * nTabSizeInSpaces * scale;
 			} else {
 				let ox = (c.charCodeAt(0) - 32) % 16;
-				let oy = (c.charCodeAt(0) - 32) / 16;
+				let oy = Math.floor((c.charCodeAt(0) - 32) / 16);
 
 				if (scale > 1) {
 					for (let i = 0; i < 8; i++)
@@ -1225,10 +1241,10 @@ export abstract class GameEngine {
     //}
 
     drawRect(x: number, y: number, w: number, h: number, p: Pixel) {
-		this.drawLine(x, y, x + w, y + h, p);
+		this.drawLine(x, y, x + w, y, p);
 		this.drawLine(x + w, y, x + w, y + h, p);
-		this.drawLine(x + w, y + h, x, y + h, p);
-		this.drawLine(x, y + h, x, y, p);
+		this.drawLine(x, y + h, x + w, y + h, p);
+		this.drawLine(x, y, x, y + h, p);
 	}
 
     drawRectByVI2D(pos: VI2D, size: VI2D, p: Pixel) {
@@ -1387,7 +1403,8 @@ export abstract class GameEngine {
     }
     
     constructFontSheet() {
-        let data = '';
+        console.log('FontSheet*********')
+		let data = '';
 		data += '?Q`0001oOch0o01o@F40o0<AGD4090LAGD<090@A7ch0?00O7Q`0600>00000000';
 		data += 'O000000nOT0063Qo4d8>?7a14Gno94AA4gno94AaOT0>o3`oO400o7QN00000400';
 		data += 'Of80001oOg<7O7moBGT7O7lABET024@aBEd714AiOdl717a_=TH013Q>00000000';
@@ -1438,8 +1455,8 @@ export abstract class GameEngine {
     
     coreUpdate() {
         //console.log('Core Update', this);
-		const step = () => {
-			this.m_tp2 = Date.now();
+		const step: FrameRequestCallback = (s) => {
+			this.m_tp2 = s;
 			const elapsedTime = this.m_tp2 - this.m_tp1;
 			this.m_tp1 = this.m_tp2;
 
@@ -1475,22 +1492,22 @@ export abstract class GameEngine {
 
 			//console.log('Scanning HW');
 
-			//ScanHardware(this.pKeyboardState, this.pKeyOldState, this.pKeyNewState, 256);
-			//ScanHardware(this.pMouseState, this.pMouseOldState, this.pMouseNewState, nMouseButtons);
+			ScanHardware(this.pKeyboardState, this.pKeyOldState, this.pKeyNewState, 256);
+			ScanHardware(this.pMouseState, this.pMouseOldState, this.pMouseNewState, nMouseButtons);
 
 			// Cache mouse coordinates so they remain consistent during frame
 			this.vMousePos = this.vMousePosCache;
 			this.nMouseWheelDelta = this.nMouseWheelDeltaCache;
 			this.nMouseWheelDeltaCache = 0;
 
-			//	renderer->ClearBuffer(olc::BLACK, true);
+			// renderer->ClearBuffer(olc::BLACK, true);
 
 			// Handle Frame Update
 			let bExtensionBlockFrame = false;
 			for (const ext of this.vExtensions) bExtensionBlockFrame ||= ext.onBeforeUserUpdate(fElapsedTime);
 
 			if (!bExtensionBlockFrame) {
-				if (!this.onUserUpdate(fElapsedTime)) this.bAtomActive = false;
+				if (!this.onUserUpdate(s)) { this.bAtomActive = false; }
 			}
 
 			for (const ext of this.vExtensions) ext.onAfterUserUpdate(fElapsedTime);
@@ -1506,7 +1523,7 @@ export abstract class GameEngine {
 			renderer.prepareDrawing();
 
 			for (const layer of this.vLayers) {
-				//console.log('Layer', layer);
+				//console.log('Layer', this.vLayers.length);
 				if (layer.show) {
 					if (layer.funcHook === undefined) {
 						renderer.applyTexture(layer.drawTarget.decal().id);
@@ -1537,7 +1554,7 @@ export abstract class GameEngine {
 			if (this.fFrameTimer >= 1.0) {
 				this.nLastFPS = this.nFrameCount;
 				this.fFrameTimer -= 1.0;
-				const sTitle = 'OneLoneCoder.com - Pixel Game Engine - ' + this.sAppName + ' - FPS: ' + this.nFrameCount;
+				const sTitle = 'NES Game Engine - ' + this.sAppName + ' - FPS: ' + this.nFrameCount;
 				platform.setWindowTitle(sTitle);
 				this.nFrameCount = 0;
 			}
@@ -1590,8 +1607,8 @@ export abstract class GameEngine {
 	}
 
 	setKeyboardState(key: string, button: HWButton): void {
-		console.log('GE::setKeyboardState()/button', button);
-		switch(key) {
+		console.log('GE::setKeyboardState()/button', `'${key}'`, button);
+		/* switch(key) {
 			case 'a':
 			case 'A':
 				this.pKeyboardState[1].bHeld = button.bHeld;
@@ -1622,8 +1639,54 @@ export abstract class GameEngine {
 				this.pKeyboardState[6].bHeld = button.bHeld;
 				this.pKeyboardState[6].bPressed = button.bPressed;
 				this.pKeyboardState[6].bReleased = button.bReleased;
-		}
+		} */
 
+		const keyEnum = key.toUpperCase();
+
+		if (keyEnum in Key) {
+			//console.log('Key Index:', <any>Key[<any>keyEnum]);
+			const keyIndex:number = (<any>Key)[keyEnum];
+			this.pKeyboardState[keyIndex].bHeld = button.bHeld;
+			this.pKeyboardState[keyIndex].bPressed = button.bPressed;
+			this.pKeyboardState[keyIndex].bReleased = button.bHeld;
+			console.log('Key:', keyIndex, 'C:', this.getKey(Key.C));
+		} else {
+			switch (key) {
+				case 'ArrowUp':
+					this.pKeyboardState[Key.UP].bHeld = button.bHeld;
+					this.pKeyboardState[Key.UP].bPressed = button.bPressed;
+					this.pKeyboardState[Key.UP].bReleased = button.bHeld;
+					console.log(key, this.getKey(Key.UP))
+					break;
+				
+				case 'ArrowDown':
+					this.pKeyboardState[Key.DOWN].bHeld = button.bHeld;
+					this.pKeyboardState[Key.DOWN].bPressed = button.bPressed;
+					this.pKeyboardState[Key.DOWN].bReleased = button.bHeld;
+					break;
+				
+				case 'ArrowLeft':
+					this.pKeyboardState[Key.LEFT].bHeld = button.bHeld;
+					this.pKeyboardState[Key.LEFT].bPressed = button.bPressed;
+					this.pKeyboardState[Key.LEFT].bReleased = button.bHeld;
+					break;
+				
+				case 'ArrowRight':
+					this.pKeyboardState[Key.RIGHT].bHeld = button.bHeld;
+					this.pKeyboardState[Key.RIGHT].bPressed = button.bPressed;
+					this.pKeyboardState[Key.RIGHT].bReleased = button.bHeld;
+					break;
+				
+				case ' ':
+					this.pKeyboardState[Key.SPACE].bHeld = button.bHeld;
+					this.pKeyboardState[Key.SPACE].bPressed = button.bPressed;
+					this.pKeyboardState[Key.SPACE].bReleased = button.bHeld;
+					break;
+				
+				default:
+					break;
+			}
+		}
 		//console.log('Current State', this.pKeyboardState);
 		//console.log('New State', this.pKeyNewState);
 		//console.log('Old State', this.pKeyOldState);

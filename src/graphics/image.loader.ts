@@ -1,5 +1,5 @@
 import { Pixel, RCode } from './index';
-import { MAGENTA } from './pixel';
+import { BLUE, MAGENTA, RED } from './pixel';
 import { ResourcePack } from './resource';
 import { Sprite } from './sprite';
 
@@ -14,11 +14,26 @@ export class StandardImageLoader implements ImageLoader {
         sprite.height = imageFile.height;
         sprite.colData = [];
 
+        //@ts-ignore
+        const c = new OffscreenCanvas(imageFile.width, imageFile.height);
+        const cxt: CanvasRenderingContext2D = c.getContext('2d')!;
+
+        cxt.drawImage(imageFile, 0, 0, imageFile.width, imageFile.height);
+        const { data } = cxt.getImageData(0, 0, imageFile.width, imageFile.height);
+        
+
         const pixelCount = imageFile.width * imageFile.height;
 
-        for (let x = 0; x < pixelCount; x += 4) {
-            sprite.colData.push(MAGENTA);
+        for (let x = 0; x < pixelCount; x++) {
+            const i = x * 4;
+            const red = data[i + 0];
+            const green = data[i + 1];
+            const blue = data[i + 2];
+            const alpha = data[i + 3];
+            sprite.colData.push(new Pixel(red, green, blue, alpha));
         }
+
+        const coloredCount = data.filter(v => v > 0).length;
 
         return RCode.OK;
     }

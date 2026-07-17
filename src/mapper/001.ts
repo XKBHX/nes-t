@@ -1,3 +1,4 @@
+import { Ref } from 'utils';
 import { Mapper, MIRROR } from "./mapper";
 
 export class Mapper001 extends Mapper {
@@ -20,12 +21,12 @@ export class Mapper001 extends Mapper {
 
   override cpuMapRead(
     address: number,
-    mappedAddress: number,
-    data: number
+    mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>,
+    data: Ref<{ data: Uint8Array[0] }>
   ): boolean {
     if (address >= 0x6000 && address <= 0x7fff) {
-      mappedAddress = 0xffffffff;
-      data = this.ramStatic[address & 0x1fff];
+      mappedAddress.mappedAddress = 0xffffffff;
+      data.data = this.ramStatic[address & 0x1fff];
 
       return true;
     }
@@ -33,16 +34,16 @@ export class Mapper001 extends Mapper {
     if (address >= 0x8000) {
       if (this.controlRegister & 0b01000) {
         if (address >= 0x8000 && address <= 0xbfff) {
-          mappedAddress = this.pRGBankSelect16Lo * 0x4000 + (address & 0x3fff);
+          mappedAddress.mappedAddress = this.pRGBankSelect16Lo * 0x4000 + (address & 0x3fff);
           return true;
         }
 
         if (address >= 0xc000 && address <= 0xffff) {
-          mappedAddress = this.pRGBankSelect16Hi * 0x4000 + (address & 0x3fff);
+          mappedAddress.mappedAddress = this.pRGBankSelect16Hi * 0x4000 + (address & 0x3fff);
           return true;
         }
       } else {
-        mappedAddress = this.pRGBankSelect32 * 0x8000 + (address & 0x7fff);
+        mappedAddress.mappedAddress = this.pRGBankSelect32 * 0x8000 + (address & 0x7fff);
         return true;
       }
     }
@@ -51,11 +52,11 @@ export class Mapper001 extends Mapper {
   }
   override cpuMapWrite(
     address: number,
-    mappedAddress: number,
-    data: number
+    mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>,
+    data: Uint8Array[0] = 0
   ): boolean {
     if (address >= 0x6000 && address <= 0x7fff) {
-      mappedAddress = 0xffffffff;
+      mappedAddress.mappedAddress = 0xffffffff;
       this.ramStatic[address & 0x1fff] = data;
 
       return true;
@@ -123,24 +124,24 @@ export class Mapper001 extends Mapper {
 
     return false;
   }
-  override ppuMapRead(address: number, mappedAddress: number): boolean {
+  override ppuMapRead(address: number, mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean {
     if (address < 0x2000) {
       if (this.cHRBanks === 0) {
-        mappedAddress = address;
+        mappedAddress.mappedAddress = address;
         return true;
       } else {
         if (this.controlRegister & 0b10000) {
           if (address >= 0x0000 && address <= 0x0fff) {
-            mappedAddress = this.cHRBankSelect4Lo * 0x1000 + (address & 0x0fff);
+            mappedAddress.mappedAddress = this.cHRBankSelect4Lo * 0x1000 + (address & 0x0fff);
             return true;
           }
 
           if (address >= 0x1000 && address <= 0x1fff) {
-            mappedAddress = this.cHRBankSelect4Hi * 0x1000 + (address & 0x0fff);
+            mappedAddress.mappedAddress = this.cHRBankSelect4Hi * 0x1000 + (address & 0x0fff);
             return true;
           }
         } else {
-          mappedAddress = this.cHRBankSelect8 * 0x2000 + (address & 0x1fff);
+          mappedAddress.mappedAddress = this.cHRBankSelect8 * 0x2000 + (address & 0x1fff);
           return true;
         }
       }
@@ -148,15 +149,14 @@ export class Mapper001 extends Mapper {
 
     return false;
   }
-  override ppuMapWrite(address: number, mappedAddress: number): boolean {
+  override ppuMapWrite(address: number, mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean {
     if (address < 0x2000) {
       if (this.cHRBanks === 0) {
-        mappedAddress = address;
+        mappedAddress.mappedAddress = address;
         return true;
       }
-
-      return true;
-    } else return false;
+    }
+    return false;
   }
   override reset(): void {
     this.controlRegister = 0x1c;
@@ -173,14 +173,5 @@ export class Mapper001 extends Mapper {
   }
   override mirror(): MIRROR {
     return this.mirrorMode;
-  }
-  override irqState(): boolean {
-    throw new Error("Method not implemented.");
-  }
-  override irqClear(): void {
-    throw new Error("Method not implemented.");
-  }
-  override scanline(): void {
-    throw new Error("Method not implemented.");
   }
 }

@@ -1,3 +1,4 @@
+import { Ref } from 'utils';
 import { Mapper, MIRROR } from "./mapper";
 
 export class Mapper000 extends Mapper {
@@ -5,37 +6,37 @@ export class Mapper000 extends Mapper {
     super(prgBanks, chrBanks);
   }
 
-  override cpuMapRead(address: number, mappedAddress: number, data: number): boolean {
+  override cpuMapRead(address: number, mappedAddress: { mappedAddress: Uint32Array[0] }, data: { data: Uint8Array[0] }): boolean {
     if (address >= 0x8000 && address <= 0xffff) {
-      mappedAddress = address & (this.pRGBanks > 1 ? 0x7fff : 0x3fff);
+      mappedAddress.mappedAddress = address & (this.pRGBanks > 1 ? 0x7fff : 0x3fff);
+      //console.log('Mapper000 Mapped Address', mappedAddress);
       return true;
     }
 
     return false;
   }
   
-  override cpuMapWrite(address: number, mappedAddress: number, data: number): boolean {
+  override cpuMapWrite(address: number, mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>, data: Uint8Array[0]): boolean {
     if (address >= 0x8000 && address <= 0xFFFF) {
-	  	mappedAddress = address & (this.pRGBanks > 1 ? 0x7FFF : 0x3FFF);
+	  	mappedAddress.mappedAddress = address & (this.pRGBanks > 1 ? 0x7FFF : 0x3FFF);
 	  	return true;
 	  }
 
 	  return false;
   }
-  override ppuMapRead(address: number, mappedAddress: number): boolean {
-    if (address >= 0x0000 && address <= 0x1FFF)
-	{
-		mappedAddress = address;
-		return true;
-	}
+  override ppuMapRead(address: number, mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean {
+    if (address >= 0x0000 && address <= 0x1FFF) {
+	  	mappedAddress.mappedAddress = address;
+	  	return true;
+	  }
 
-	return false;
+	  return false;
   }
-  override ppuMapWrite(address: number, mappedAddress: number): boolean {
+  override ppuMapWrite(address: number, mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean {
     if (address >= 0x0000 && address <= 0x1FFF) {
 	  	if (this.cHRBanks === 0) {
 	  		// Treat as RAM
-	  		mappedAddress = address;
+	  		mappedAddress.mappedAddress = address;
 	  		return true;
 	  	}
 	  }

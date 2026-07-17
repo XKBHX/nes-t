@@ -1,3 +1,4 @@
+import { Ref } from 'utils';
 import { Mapper, MIRROR } from "./mapper";
 
 export class Mapper004 extends Mapper {
@@ -10,49 +11,83 @@ export class Mapper004 extends Mapper {
   private pRGBank: Uint32Array;
   private iRQActive: boolean = false;
   private iRQEnable: boolean = false;
-  private iRQUpdate: boolean = false;
+  private iRQReloadPending: boolean = false;
   private iRQCounter: Uint16Array[0] = 0x0000;
   private iRQReload: Uint16Array[0] = 0x0000;
   private ramStatic: Uint8Array;
 
   constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {
     super(prgBanks, chrBanks);
-    this.ramStatic = new Uint8Array(32 * 1024);
+    this.ramStatic = new Uint8Array(8 * 1024);
     this.register = new Uint32Array(8);
     this.cHRBank = new Uint32Array(8);
     this.pRGBank = new Uint32Array(4);
+    this.reset();
+  }
+
+  private updateBanks(): void {
+    if (this.cHRInversion) {
+      this.cHRBank[0] = this.register[2] * 0x0400;
+      this.cHRBank[1] = this.register[3] * 0x0400;
+      this.cHRBank[2] = this.register[4] * 0x0400;
+      this.cHRBank[3] = this.register[5] * 0x0400;
+      this.cHRBank[4] = (this.register[0] & 0xfe) * 0x0400;
+      this.cHRBank[5] = (this.register[0] & 0xfe) * 0x0400 + 0x0400;
+      this.cHRBank[6] = (this.register[1] & 0xfe) * 0x0400;
+      this.cHRBank[7] = (this.register[1] & 0xfe) * 0x0400 + 0x0400;
+    } else {
+      this.cHRBank[0] = (this.register[0] & 0xfe) * 0x0400;
+      this.cHRBank[1] = (this.register[0] & 0xfe) * 0x0400 + 0x0400;
+      this.cHRBank[2] = (this.register[1] & 0xfe) * 0x0400;
+      this.cHRBank[3] = (this.register[1] & 0xfe) * 0x0400 + 0x0400;
+      this.cHRBank[4] = this.register[2] * 0x0400;
+      this.cHRBank[5] = this.register[3] * 0x0400;
+      this.cHRBank[6] = this.register[4] * 0x0400;
+      this.cHRBank[7] = this.register[5] * 0x0400;
+    }
+
+    if (this.pRGBankMode) {
+      this.pRGBank[2] = (this.register[6] & 0x3f) * 0x2000;
+      this.pRGBank[0] = (this.pRGBanks * 2 - 2) * 0x2000;
+    } else {
+      this.pRGBank[0] = (this.register[6] & 0x3f) * 0x2000;
+      this.pRGBank[2] = (this.pRGBanks * 2 - 2) * 0x2000;
+    }
+
+    this.pRGBank[1] = (this.register[7] & 0x3f) * 0x2000;
+    this.pRGBank[3] = (this.pRGBanks * 2 - 1) * 0x2000;
   }
 
   override cpuMapRead(
     address: number,
-    mappedAddress: number,
-    data: number
+    mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>,
+    data: Ref<{ data: Uint8Array[0] }>
   ): boolean {
     if (address >= 0x6000 && address <= 0x7fff) {
-      mappedAddress = 0xffffffff;
+      mappedAddress.mappedAddress = 0xffffffff;
 
-      data = this.ramStatic[address & 0x1fff];
+      data.data = this.ramStatic[address & 0x1fff];
 
       return true;
     }
 
     if (address >= 0x8000 && address <= 0x9fff) {
-      mappedAddress = this.pRGBank[0] + (address & 0x1fff);
+      mappedAddress.mappedAddress = this.pRGBank[0] + (address & 0x1fff);
       return true;
     }
 
     if (address >= 0xa000 && address <= 0xbfff) {
-      mappedAddress = this.pRGBank[1] + (address & 0x1fff);
+      mappedAddress.mappedAddress = this.pRGBank[1] + (address & 0x1fff);
       return true;
     }
 
     if (address >= 0xc000 && address <= 0xdfff) {
-      mappedAddress = this.pRGBank[2] + (address & 0x1fff);
+      mappedAddress.mappedAddress = this.pRGBank[2] + (address & 0x1fff);
       return true;
     }
 
     if (address >= 0xe000 && address <= 0xffff) {
-      mappedAddress = this.pRGBank[3] + (address & 0x1fff);
+      mappedAddress.mappedAddress = this.pRGBank[3] + (address & 0x1fff);
       return true;
     }
 
@@ -60,11 +95,11 @@ export class Mapper004 extends Mapper {
   }
   override cpuMapWrite(
     address: number,
-    mappedAddress: number,
-    data: number
+    mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>,
+    data: Uint8Array[0]
   ): boolean {
     if (address >= 0x6000 && address <= 0x7fff) {
-      mappedAddress = 0xffffffff;
+      mappedAddress.mappedAddress = 0xffffffff;
 
       this.ramStatic[address & 0x1fff] = data;
 
@@ -76,39 +111,10 @@ export class Mapper004 extends Mapper {
         this.targetRegister = data & 0x07;
         this.pRGBankMode = (data & 0x40) !== 0x00;
         this.cHRInversion = (data & 0x80) !== 0x00;
+        this.updateBanks();
       } else {
         this.register[this.targetRegister] = data;
-
-        if (this.cHRInversion) {
-          this.cHRBank[0] = this.register[2] * 0x0400;
-          this.cHRBank[1] = this.register[3] * 0x0400;
-          this.cHRBank[2] = this.register[4] * 0x0400;
-          this.cHRBank[3] = this.register[5] * 0x0400;
-          this.cHRBank[4] = (this.register[0] & 0xfe) * 0x0400;
-          this.cHRBank[5] = this.register[0] * 0x0400 + 0x0400;
-          this.cHRBank[6] = (this.register[1] & 0xfe) * 0x0400;
-          this.cHRBank[7] = this.register[1] * 0x0400 + 0x0400;
-        } else {
-          this.cHRBank[0] = (this.register[0] & 0xfe) * 0x0400;
-          this.cHRBank[1] = this.register[0] * 0x0400 + 0x0400;
-          this.cHRBank[2] = (this.register[1] & 0xfe) * 0x0400;
-          this.cHRBank[3] = this.register[1] * 0x0400 + 0x0400;
-          this.cHRBank[4] = this.register[2] * 0x0400;
-          this.cHRBank[5] = this.register[3] * 0x0400;
-          this.cHRBank[6] = this.register[4] * 0x0400;
-          this.cHRBank[7] = this.register[5] * 0x0400;
-        }
-
-        if (this.pRGBankMode) {
-          this.pRGBank[2] = (this.register[6] & 0x3f) * 0x2000;
-          this.pRGBank[0] = (this.pRGBanks * 2 - 2) * 0x2000;
-        } else {
-          this.pRGBank[0] = (this.register[6] & 0x3f) * 0x2000;
-          this.pRGBank[2] = (this.pRGBanks * 2 - 2) * 0x2000;
-        }
-
-        this.pRGBank[1] = (this.register[7] & 0x3f) * 0x2000;
-        this.pRGBank[3] = (this.pRGBanks * 2 - 1) * 0x2000;
+        this.updateBanks();
       }
 
       return false;
@@ -120,7 +126,6 @@ export class Mapper004 extends Mapper {
         else this.mirrorMode = MIRROR.VERTICAL;
       } else {
         // PRG Ram Protect
-        // TODO:
       }
       return false;
     }
@@ -130,6 +135,7 @@ export class Mapper004 extends Mapper {
         this.iRQReload = data;
       } else {
         this.iRQCounter = 0x0000;
+        this.iRQReloadPending = true;
       }
       return false;
     }
@@ -146,50 +152,56 @@ export class Mapper004 extends Mapper {
 
     return false;
   }
-  override ppuMapRead(address: number, mappedAddress: number): boolean {
+  override ppuMapRead(address: number, mappedAddress: { mappedAddress: Uint32Array[0] }): boolean {
     if (address >= 0x0000 && address <= 0x03ff) {
-      mappedAddress = this.cHRBank[0] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[0] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x0400 && address <= 0x07ff) {
-      mappedAddress = this.cHRBank[1] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[1] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x0800 && address <= 0x0bff) {
-      mappedAddress = this.cHRBank[2] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[2] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x0c00 && address <= 0x0fff) {
-      mappedAddress = this.cHRBank[3] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[3] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x1000 && address <= 0x13ff) {
-      mappedAddress = this.cHRBank[4] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[4] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x1400 && address <= 0x17ff) {
-      mappedAddress = this.cHRBank[5] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[5] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x1800 && address <= 0x1bff) {
-      mappedAddress = this.cHRBank[6] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[6] + (address & 0x03ff);
       return true;
     }
 
     if (address >= 0x1c00 && address <= 0x1fff) {
-      mappedAddress = this.cHRBank[7] + (address & 0x03ff);
+      mappedAddress.mappedAddress = this.cHRBank[7] + (address & 0x03ff);
       return true;
     }
 
     return false;
   }
-  override ppuMapWrite(address: number, mappedAddress: number): boolean {
+  override ppuMapWrite(address: number, mappedAddress: { mappedAddress: Uint32Array[0] }): boolean {
+    if (address >= 0x0000 && address <= 0x1fff) {
+      if (this.cHRBanks === 0) {
+        mappedAddress.mappedAddress = address;
+        return true;
+      }
+    }
     return false;
   }
   override reset(): void {
@@ -200,7 +212,7 @@ export class Mapper004 extends Mapper {
 
     this.iRQActive = false;
     this.iRQEnable = false;
-    this.iRQUpdate = false;
+    this.iRQReloadPending = false;
     this.iRQCounter = 0x0000;
     this.iRQReload = 0x0000;
 
@@ -225,11 +237,14 @@ export class Mapper004 extends Mapper {
     this.iRQActive = false;
   }
   override scanline(): void {
-    if (this.iRQCounter == 0) {
+    if (this.iRQCounter === 0 || this.iRQReloadPending) {
       this.iRQCounter = this.iRQReload;
-    } else this.iRQCounter--;
+      this.iRQReloadPending = false;
+    } else {
+      this.iRQCounter--;
+    }
 
-    if (this.iRQCounter == 0 && this.iRQEnable) {
+    if (this.iRQCounter === 0 && this.iRQEnable) {
       this.iRQActive = true;
     }
   }

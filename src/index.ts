@@ -6,12 +6,21 @@ import square from './square.shader';
 import cube from './cube.shader';
 import { mat4, vec3 } from 'gl-matrix';
 import { createEmptyGPUBuffer, createGPUBuffer, createProjectionView, initGPU, createTransform, createAnimation } from './gpu';
-//import { Cartridge } from './cartridge';
 import { NESGameEngine } from './nes';
-import { Key } from './graphics';
 import flower from './rom/flower-watercolor-red.png';
 import no from './rom/red-no-smoke.webp';
+import xbox from './rom/Achievement-mp3-sound.mp3';
+//import rom from './rom/cpu_dummy_reads.nes';
+//import rom from './rom/240pee.nes';
+//import rom from './rom/simple-test-1.nes';
 import rom from './rom/nestest.nes';
+//import rom from './rom/Super Mario Bros.nes';
+//import rom from './rom/Super Mario Bros (E).nes';
+//import rom from './rom/Super Mario Bros 3 (E).nes';
+//import rom from './rom/Donkey Kong.nes';
+//import rom from './rom/Donkey Kong Classics.nes';
+//import rom from './rom/Tetris.nes';
+//import rom from './rom/color_test.nes';
 
 //console.log('NES Emultaor')
 //console.log(navigator.gpu)
@@ -22,6 +31,7 @@ let adapter: GPUAdapter;
 let device: GPUDevice;
 let context: GPUCanvasContext;
 let gamePad: Gamepad;
+let audioContext: AudioContext;
 let nesEngine: NESGameEngine;
 
 const SOUND_SAMPLE_FREQUENCY = 44100;
@@ -31,13 +41,30 @@ const input: HTMLInputElement = <HTMLInputElement>document.getElementById('file'
 const imageInput: HTMLInputElement = <HTMLInputElement>document.getElementById('imagefile')!
 const createCamera = require('3d-view-controls')
 
-window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
+window.addEventListener('gamepadconnected', async (e: GamepadEvent) => {
     console.log(e)
-    gamePad = e.gamepad
+    gamePad = e.gamepad;
+    console.log('Gamepad:', gamePad);
+    nesEngine.connectGamepad(gamePad);
+
+    audioContext = new AudioContext();
+    //const osc = audioContext.createOscillator();
+    //osc.type = 'sine';
+    //osc.start();
+    //osc.stop(audioContext.currentTime + 1);
+    //osc.connect(audioContext.destination);
+
+    const audio = await audioContext.decodeAudioData(await (await fetch(xbox)).arrayBuffer());
+    const source = audioContext.createBufferSource();
+    source.buffer = audio;
+    source.connect(audioContext.destination);
+    source.start();
+    source.stop(audioContext.currentTime + audio.duration);
 })
 
 window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
     console.log(e)
+    nesEngine.disconnectGamepad();
 })
 
 window.addEventListener('keydown', e => {
@@ -276,24 +303,12 @@ const init = async () => {
     const webGPURenderer = <WebGPURenderer>renderer
     
     webGPURenderer.setup(adapter, device, context, format)
-    
-    //createTriangle(adapter, device, context, format);
-    //createSquare(adapter, device, context, format);
-    //createCube(adapter, device, context, format)
-
-    
 
     nesEngine = new NESGameEngine(romData, imageData);
 
-    nesEngine.construct(780, 480, 2, 2)
+    nesEngine.construct(canvas.width, canvas.height, 1, 1)
     nesEngine.start()
     
-    //console.log(canvas)
-    //console.log(nesEngine)
-    //console.log(adapter)
-    //console.log(device)
-    //console.log(context)
-    //console.log(renderer)
     console.log('Screean Size', nesEngine.screenWidth(), nesEngine.screenHeight())
 };
 

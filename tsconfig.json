@@ -4,7 +4,7 @@
     "baseUrl": "./src",
     "noImplicitAny": true,
     "module": "CommonJS",
-    "target": "es5",
+    "target": "es6",
     "moduleResolution": "node",
     //"importHelpers": true,
     "outDir": "./dist/",
@@ -18,5 +18,6 @@
     "typeRoots": [ "node_modules/@webgpu/types", "node_modules/@types" ]
   },
   "files": ["src/index.ts"],
-  "include": ["index.d.ts"]
+  "include": ["index.d.ts"],
+  "exclude": ["node_modules"]
 }

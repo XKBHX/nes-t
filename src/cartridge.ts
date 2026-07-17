@@ -8,6 +8,7 @@ import {
     Mapper066,
     MIRROR
 } from './mapper';
+import type { Ref } from './utils';
 
 export interface Header {
     name: string;
@@ -24,9 +25,9 @@ export interface Header {
 export class Cartridge {
     private imgValid: boolean;
     private hwMirror: MIRROR = MIRROR.HORIZONTAL;
-    private mapperId: Uint8Array[0] = 0;
-    private pRGBanks: Uint8Array[0] = 0;
-    private cHRBanks: Uint8Array[0] = 0;
+    private mapperId: Uint8Array = new Uint8Array(1);
+    private pRGBanks: Uint8Array = new Uint8Array(1);
+    private cHRBanks: Uint8Array = new Uint8Array(1);
     private pRGMemory: Uint8Array = <Uint8Array><unknown>undefined;
     private cHRMemory: Uint8Array = <Uint8Array><unknown>undefined;
     private mapper: Mapper = <Mapper><unknown>undefined;
@@ -42,7 +43,7 @@ export class Cartridge {
             filePos = 512;
         }
 
-        this.mapperId = ((header.mapper2 >> 4) >> 4) | (header.mapper1 >> 4);
+        this.mapperId[0] = (header.mapper2 & 0xf0) | (header.mapper1 >> 4);
         this.hwMirror = (header.mapper1 & 0x01) ? MIRROR.VERTICAL : MIRROR.HORIZONTAL;
 
         let fileType = 1;
@@ -53,43 +54,42 @@ export class Cartridge {
             case 0:
                 break;
             case 1:
-                this.pRGBanks = header.prgRomChunks;
-			    this.pRGMemory = new Uint8Array(buffer.slice(filePos, filePos + this.pRGBanks * 16384));
+                this.pRGBanks[0] = header.prgRomChunks;
+			    this.pRGMemory = new Uint8Array(buffer.slice(filePos, filePos + this.pRGBanks[0] * 16384));
                 //ifs.read((char*)vPRGMemory.data(), vPRGMemory.size());
                 filePos += this.pRGMemory.length
 
-			    this.cHRBanks = header.chrRomChunks;
+			    this.cHRBanks[0] = header.chrRomChunks;
 			    
-                if (this.cHRBanks === 0) {
+                if (this.cHRBanks[0] === 0) {
 			    	// Create CHR RAM
-			    	this.cHRMemory = new Uint8Array(new ArrayBuffer(8192));
+			    	this.cHRMemory = new Uint8Array(8192);
 			    } else {
-			    	// Allocate for ROM
-			    	this.cHRMemory = new Uint8Array(new ArrayBuffer(this.cHRBanks * 8192));
+			    	this.cHRMemory = new Uint8Array(buffer.slice(filePos, filePos + this.cHRBanks[0] * 8192));
+                    filePos += this.cHRMemory.length;
 			    }
-                this.cHRMemory = new Uint8Array(buffer.slice(filePos, filePos + this.cHRMemory.length));
-			    //ifs.read((char*)vCHRMemory.data(), vCHRMemory.size());
-                filePos += this.cHRMemory.length;
                 break;
             case 2:
-                this.pRGBanks = ((header.prgRamSize & 0x07) << 8) | header.prgRomChunks;
-                this.pRGMemory = new Uint8Array(buffer.slice(filePos, filePos + this.pRGBanks * 16384));
+                this.pRGBanks[0] = ((header.prgRamSize & 0x07) << 8) | header.prgRomChunks;
+                this.pRGMemory = new Uint8Array(buffer.slice(filePos, filePos + this.pRGBanks[0] * 16384));
                 filePos += this.pRGMemory.length;
 
-                this.cHRBanks = ((header.prgRamSize & 0x38) << 8) | header.chrRomChunks;
-                this.cHRMemory = new Uint8Array(buffer.slice(filePos, filePos + this.cHRBanks * 8192));
+                this.cHRBanks[0] = ((header.prgRamSize & 0x38) << 8) | header.chrRomChunks;
+                this.cHRMemory = new Uint8Array(buffer.slice(filePos, filePos + this.cHRBanks[0] * 8192));
                 filePos += this.cHRMemory.length
                 break;
         }
         
-		switch (this.mapperId) {
-		    case   0: this.mapper = new Mapper000(this.pRGBanks, this.cHRBanks); break;
-		    case   1: this.mapper = new Mapper001(this.pRGBanks, this.cHRBanks); break;
-		    case   2: this.mapper = new Mapper002(this.pRGBanks, this.cHRBanks); break;
-		    case   3: this.mapper = new Mapper003(this.pRGBanks, this.cHRBanks); break;
-		    case   4: this.mapper = new Mapper004(this.pRGBanks, this.cHRBanks); break;
-		    case  66: this.mapper = new Mapper066(this.pRGBanks, this.cHRBanks); break;
+		switch (this.mapperId[0]) {
+		    case   0: this.mapper = new Mapper000(this.pRGBanks[0], this.cHRBanks[0]); break;
+		    case   1: this.mapper = new Mapper001(this.pRGBanks[0], this.cHRBanks[0]); break;
+		    case   2: this.mapper = new Mapper002(this.pRGBanks[0], this.cHRBanks[0]); break;
+		    case   3: this.mapper = new Mapper003(this.pRGBanks[0], this.cHRBanks[0]); break;
+		    case   4: this.mapper = new Mapper004(this.pRGBanks[0], this.cHRBanks[0]); break;
+		    case  66: this.mapper = new Mapper066(this.pRGBanks[0], this.cHRBanks[0]); break;
 		}
+
+        console.log('File Type', fileType, 'Mapper', this.mapper, 'File Position', filePos);
 
 		this.imgValid = true;
     }
@@ -117,7 +117,7 @@ export class Cartridge {
         header.tvSystem1 = tvSystem1[0];
         header.tvSystem2 = tvSystem2[0];
         header.unused = unused;
-        console.log(name, header);
+        //console.log(name, header);
 
         return header;
     }
@@ -126,17 +126,20 @@ export class Cartridge {
         return this.imgValid;
     }
 
-    cpuRead(address: Uint16Array[0], data: Uint8Array[0]): boolean {
+    cpuRead(address: Uint16Array[0], data: Ref<{ data: Uint8Array[0] }>): boolean {
         let mappedAddr = 0;
+        const ma = { mappedAddress: mappedAddr };
 
-	    if (this.mapper.cpuMapRead(address, mappedAddr, data)) {
-	    	if (mappedAddr === 0xFFFFFFFF) {
+	    if (this.mapper.cpuMapRead(address, ma, data)) {
+            mappedAddr = ma.mappedAddress;
+	    	//console.log('Cartridge Mapped Address', mappedAddr, ma);
+            if (mappedAddr === 0xFFFFFFFF) {
 	    		// Mapper has actually set the data value, for example cartridge based RAM
 	    		return true;
 	    	} else {
 	    		// Mapper has produced an offset into cartridge bank memory
-	    		data = this.pRGMemory[mappedAddr];
-                console.log('Cartridge::cpuRead()', data);
+	    		data.data = this.pRGMemory[mappedAddr];
+                //console.log('Cartridge::cpuRead()', data);
 	    	}
 	    	return true;
 	    }
@@ -145,15 +148,15 @@ export class Cartridge {
     }
 
     cpuWrite(address: Uint16Array[0], data: Uint8Array[0]): boolean {
-        let mappedAddr = 0;
+        const ma = { mappedAddress: 0x00000000 };
 	    
-        if (this.mapper.cpuMapWrite(address, mappedAddr, data)) {
-	    	if (mappedAddr === 0xFFFFFFFF) {
+        if (this.mapper.cpuMapWrite(address, ma, data)) {
+	    	if (ma.mappedAddress === 0xFFFFFFFF) {
 	    		// Mapper has actually set the data value, for example cartridge based RAM
 	    		return true;
 	    	} else {
 	    		// Mapper has produced an offset into cartridge bank memory
-	    		this.pRGMemory[mappedAddr] = data;
+	    		this.pRGMemory[ma.mappedAddress] = data;
 	    	}
 	    	return true;
 	    }
@@ -161,10 +164,13 @@ export class Cartridge {
 	    	return false;
     }
 
-    ppuRead(address: Uint16Array[0], data: Uint8Array[0]): boolean {
-        const mappedAddr = 0;
-	    if (this.mapper.ppuMapWrite(address, mappedAddr)) {
-	    	data = this.cHRMemory[mappedAddr];
+    ppuRead(address: Uint16Array[0], data: Ref<{ data: Uint8Array[0] }>): boolean {
+        let mappedAddr = 0;
+        const ma = { mappedAddress: mappedAddr };
+
+	    if (this.mapper.ppuMapRead(address, ma)) {
+            mappedAddr = ma.mappedAddress;
+	    	data.data = this.cHRMemory[mappedAddr];
 	    	
             return true;
 	    }
@@ -172,8 +178,11 @@ export class Cartridge {
     }
 
     ppuWrite(address: Uint16Array[0], data: Uint8Array[0]): boolean {
-        const mappedAddr = 0;
-	    if (this.mapper.ppuMapWrite(address, mappedAddr)) {
+        let mappedAddr = 0;
+        const ma = { mappedAddress: mappedAddr };
+
+	    if (this.mapper.ppuMapWrite(address, ma)) {
+	    	mappedAddr = ma.mappedAddress;
 	    	this.cHRMemory[mappedAddr] = data;
 	    	
             return true;

@@ -1,2 +1,12 @@
 node_modules
+dist
+.DS_Store
+**/.DS_Store
+
+# Local ROM dumps / captures (keep checked-in test assets only)
+src/rom/*.zip
+src/rom/*.fmv
+src/rom/*.mp3
+
+# Course notes / local materials
 Part #7 - Mappers & Basic Sounds

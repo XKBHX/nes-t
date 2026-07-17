@@ -1,3 +1,5 @@
+import { Ref } from 'utils';
+
 export enum MIRROR {
     HARDWARE,
 	HORIZONTAL,
@@ -13,13 +15,12 @@ export abstract class Mapper {
     constructor(prgBanks: Uint8Array[0], chrBanks: Uint8Array[0]) {
         this.pRGBanks = prgBanks;
         this.cHRBanks = chrBanks;
-        //this.reset();
     }
 
-    abstract cpuMapRead(address: Uint16Array[0], mappedAddress: Uint32Array[0], data: Uint8Array[0]): boolean;
-    abstract cpuMapWrite(address: Uint16Array[0], mappedAddress: Uint32Array[0], data: Uint8Array[0]): boolean;
-    abstract ppuMapRead(address: Uint16Array[0], mappedAddress: Uint32Array[0]): boolean;
-    abstract ppuMapWrite(address: Uint16Array[0], mappedAddress: Uint32Array[0]): boolean;
+    abstract cpuMapRead(address: Uint16Array[0], mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>, data: Ref<{ data: Uint8Array[0] }>): boolean;
+    abstract cpuMapWrite(address: Uint16Array[0], mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>, data: Uint8Array[0]): boolean;
+    abstract ppuMapRead(address: Uint16Array[0], mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean;
+    abstract ppuMapWrite(address: Uint16Array[0], mappedAddress: Ref<{ mappedAddress: Uint32Array[0] }>): boolean;
     
     reset(): void {}
     mirror(): MIRROR { return MIRROR.HARDWARE; }

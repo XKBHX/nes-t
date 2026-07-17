@@ -1,35 +1,43 @@
+import { Ref } from './utils';
+
 export class Apu {
   private frameClockCounter: Uint32Array[0] = 0;
   private clockCounter: Uint32Array[0] = 0;
   private useRawMode: boolean = false;
-  private static lengthTable: Uint8Array;
-  private globalTime: number = 0.0;
+  
+  private static lengthTable: Uint8Array = new Uint8Array([
+    10, 254, 20,  2, 40,  4, 80,  6,
+   160,   8, 60, 10, 14, 12, 26, 14,
+    12,  16, 24, 18, 48, 20, 96, 22,
+   192,  24, 72, 26, 16, 28, 32, 30]);
+  
+   private globalTime: number = 0.0;
 
   private pulse1Enable: boolean = false;
   private pulse1Halt: boolean = false;
   private pulse1Sample: number = 0.0;
   private pulse1Output: number = 0.0;
-  private pulse1Seq: Sequencer;
-  private pulse1Osc: Oscpulse;
-  private pulse1Env: Envelope;
-  private pulse1Lc: LengthCounter;
-  private pulse1Sweep: Sweeper;
+  private pulse1Seq: Sequencer = new Sequencer();
+  private pulse1Osc: Oscpulse = new Oscpulse();
+  private pulse1Env: Envelope = new Envelope();
+  private pulse1Lc: LengthCounter = new LengthCounter();
+  private pulse1Sweep: Sweeper = new Sweeper();
 
   private pulse2Enable: boolean = false;
   private pulse2Halt: boolean = false;
   private pulse2Sample: number = 0.0;
   private pulse2Output: number = 0.0;
-  private pulse2Seq: Sequencer;
-  private pulse2Osc: Oscpulse;
-  private pulse2Env: Envelope;
-  private pulse2Lc: LengthCounter;
-  private pulse2Sweep: Sweeper;
+  private pulse2Seq: Sequencer = new Sequencer();
+  private pulse2Osc: Oscpulse = new Oscpulse();
+  private pulse2Env: Envelope = new Envelope();
+  private pulse2Lc: LengthCounter = new LengthCounter();
+  private pulse2Sweep: Sweeper = new Sweeper();
 
   private noiseEnable: boolean = false;
   private noiseHalt: boolean = false;
-  private noiseEnv: Envelope;
-  private noiseLc: LengthCounter;
-  private noiseSeq: Sequencer;
+  private noiseEnv: Envelope = new Envelope();
+  private noiseLc: LengthCounter = new LengthCounter();
+  private noiseSeq: Sequencer = new Sequencer();
   private noiseSample: number = 0;
   private noiseOutput: number = 0;
 
@@ -216,9 +224,9 @@ export class Apu {
     let data = 0x00;
 
     if (address == 0x4015) {
-      //	data |= (this.pulse1Lc.counter > 0) ? 0x01 : 0x00;
-      //	data |= (this.pulse2Lc.counter > 0) ? 0x02 : 0x00;
-      //	data |= (this.noiseLc.counter > 0) ? 0x04 : 0x00;
+      data |= (this.pulse1Lc.counter > 0) ? 0x01 : 0x00;
+      data |= (this.pulse2Lc.counter > 0) ? 0x02 : 0x00;
+      data |= (this.noiseLc.counter > 0) ? 0x04 : 0x00;
     }
 
     return data;
@@ -266,8 +274,8 @@ export class Apu {
         this.pulse1Lc.clock(this.pulse1Enable, this.pulse1Halt);
         this.pulse2Lc.clock(this.pulse2Enable, this.pulse2Halt);
         this.noiseLc.clock(this.noiseEnable, this.noiseHalt);
-        this.pulse1Sweep.clock(this.pulse1Seq.reload, false);
-        this.pulse2Sweep.clock(this.pulse2Seq.reload, true);
+        this.pulse1Sweep.clock({ target: this.pulse1Seq.reload }, false);
+        this.pulse2Sweep.clock({ target: this.pulse2Seq.reload }, true);
       }
 
       //	if (this.useRawMode)
@@ -474,15 +482,15 @@ class Sweeper {
     }
   }
 
-  clock(target: Uint16Array[0], channel: boolean): boolean {
+  clock(t: Ref<{ target: Uint16Array[0] }>, channel: boolean): boolean {
     let changed = false;
 
     if (this.timer === 0 && this.enabled && this.shift > 0 && !this.mute) {
-      if (target >= 8 && this.change < 0x07ff) {
+      if (t.target >= 8 && this.change < 0x07ff) {
         if (this.down) {
-          target -= this.change - +channel;
+          t.target -= this.change - +channel;
         } else {
-          target += this.change;
+          t.target += this.change;
         }
         changed = true;
       }
@@ -493,7 +501,7 @@ class Sweeper {
         this.timer = this.period;
         this.reload = false;
       } else this.timer--;
-      this.mute = target < 8 || target > 0x7ff;
+      this.mute = t.target < 8 || t.target > 0x7ff;
     }
     return changed;
   }

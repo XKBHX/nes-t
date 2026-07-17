@@ -2,6 +2,7 @@ import {} from 'tslib';
 import { VF2D } from './render';
 import textureShader from '../texture.shader';
 import { createGPUBuffer } from '../gpu';
+import { Sprite } from './sprite';
 
 export interface WebGPURenderable {}
 
@@ -19,7 +20,31 @@ export class ImageWebGPURenderable implements WebGPURenderable {
     pipelineFormat: GPUTextureFormat = 'bgra8unorm';
     viewportDescriptor: GPUViewportDescriptor = <GPUViewportDescriptor>{};
     
-    constructor(public image: ImageBitmap, public renderIndex: number) {}
+    constructor(public image: ImageBitmap, public renderIndex: number, public size: [number, number] = [100, 100]) {}
+
+    static async createFromSprite(sprite: Sprite, renderIndex: number, size: [number, number] = [100, 100]): Promise<ImageWebGPURenderable> {
+        const image = await ImageWebGPURenderable.createImageBitmapFromSprite(sprite);
+        return new ImageWebGPURenderable(image, renderIndex, size);
+    }
+
+    static async createImageBitmapFromSprite(sprite: Sprite): Promise<ImageBitmap> {
+        const { colData, width, height } = sprite;
+        const pixelData = new Uint8ClampedArray(new ArrayBuffer(colData.length * 4));
+        
+        for (let i = 0; i < colData.length; i++) {
+            pixelData[i * 4 + 0] = colData[i].red;
+            pixelData[i * 4 + 1] = colData[i].green;
+            pixelData[i * 4 + 2] = colData[i].blue;
+            pixelData[i * 4 + 3] = colData[i].alpha;
+        }
+        
+        const imageData = new ImageData(pixelData, width, height);
+        return await createImageBitmap(imageData);
+    }
+
+    updateImageFromSprite(sprite: Sprite): void {
+        ImageWebGPURenderable.createImageBitmapFromSprite(sprite).then(i => this.image = i);
+    }
 
     getVertexData(): Float32Array {
         return new Float32Array([

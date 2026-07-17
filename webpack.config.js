@@ -18,6 +18,7 @@ const config = {
   devServer: {
     open: true,
     host: 'localhost',
+    port: 8082
   },
   plugins: [
     new HtmlWebpackPlugin({
@@ -41,6 +42,13 @@ const config = {
         type: 'asset/resource',
         generator: {
           filename: 'roms/[name][ext][query]',
+        }
+      },
+      {
+        test: /\.(mp3)$/i,
+        type: 'asset/resource',
+        generator: {
+          filename: 'assets/[name][ext][query]',
         }
       },
       {

@@ -152,13 +152,11 @@ export class WebGPURenderer extends Renderer {
     private device: GPUDevice = <GPUDevice><unknown>undefined;
     private context: GPUCanvasContext = <GPUCanvasContext><unknown>undefined;
     private format: GPUTextureFormat = <GPUTextureFormat><unknown>undefined;
-    private textures: GPUTexture[];
     private decalMode: DecalMode;
     private decalStructure: DecalStructure = DecalStructure.FAN
     private sync: boolean = false;
     private displayVertexData: Float32Array = <Float32Array><unknown>undefined;
     private displayColorData: Float32Array = <Float32Array><unknown>undefined;
-    private shader: string;
     private mainSprite: Sprite = <Sprite><unknown>undefined;
     private defaultTexture: GPUTexture = <GPUTexture><unknown>undefined;
     private currentClearColor: GPUColorDict = { r: 0, g: 0, b: 0, a: 0 };
@@ -171,18 +169,12 @@ export class WebGPURenderer extends Renderer {
         //const descriptor: GPUTextureDescriptor = { format: this.format,  };
 
         //this.defaultTexture = this.device.createTexture(descriptor);
-        this.textures = [];
         this.decalMode = DecalMode.NORMAL;
-
-
 
         document.addEventListener('mousemove', e => {
             this.mouseX = e.pageX / window.innerWidth * 2;
             this.mouseY = e.pageY / window.innerHeight * 2;
         }, false);
-
-        this.shader = /* wgsl */ `node
-        `;
     }
 
     setup(adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasContext, format: GPUTextureFormat) {
@@ -253,6 +245,7 @@ export class WebGPURenderer extends Renderer {
         count++;
     }
     override drawDecal(decal: DecalInstance): void {
+        console.log('Renderer::drawDecal()');
         this.setDecalMode(decal.mode);
     }
     override createTexture(width: number, height: number, filtered?: boolean, clamp?: boolean): number {
@@ -475,12 +468,16 @@ export class WebGPURenderer extends Renderer {
         
         const clearValue: GPUColorDict = { r: 1, g: 0, b: 0, a: 1 };
         //console.log('Clear Color', clearValue);
+        const blend: GPUBlendState = {
+            alpha: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+            color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }
+        };
         
         const vertexBuffer = createGPUBuffer(this.device, vertexData);
         const module = this.device.createShaderModule({ code: textureShader });
         
         const vertex: GPUVertexState = { module, entryPoint: 'vs_main', buffers: vertexBuffers };
-        const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format }] };
+        const fragment: GPUFragmentState = { module, entryPoint: 'fs_main', targets: [{ format, blend }] };
         const primitive: GPUPrimitiveState = { topology: 'triangle-list' };
         const depthStencil: GPUDepthStencilState = { depthWriteEnabled: false, depthCompare: 'less', format: 'rgba8unorm' };
         
@@ -558,6 +555,7 @@ export class WebGPURenderer extends Renderer {
         let pos = 0;
 
         for (const renderable of imageRenderables) {
+            const [ tWidth, tHeight ] = renderable.size;
             const descriptor = renderable.getGPUTextureDescriptor();
             const source = renderable.image;
             const texture = renderable.getTexture(this.device);
@@ -567,11 +565,11 @@ export class WebGPURenderer extends Renderer {
             const vertexBuffer = renderable.getVertexBuffer(this.device);
             const cWidth = (this.context.canvas as HTMLCanvasElement).clientWidth
             const cHeight = (this.context.canvas as HTMLCanvasElement).clientHeight
-            const tWidth = cWidth * 0.5
-            const tHeight = cHeight * 0.5
+            //const tWidth = renderable.image.width * 0.5
+            //const tHeight = renderable.image.height * 0.5
             const viewportDescriptor: GPUViewportDescriptor = {
-                x: Math.min(cWidth - tWidth, pos * renderable.image.width),
-                y: Math.min(cHeight - tHeight, pos * renderable.image.height),
+                x: 0,
+                y: 0,
                 width: tWidth,
                 height: tHeight,
                 minDepth: 0,
