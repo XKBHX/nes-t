@@ -101,6 +101,47 @@ function testGamepadMapping(): void {
 
   const pads = connectedGamepads([null, { buttons, axes }, null]);
   assert(pads.length === 1, 'null gamepad slots are skipped');
+
+  buttons.forEach((button) => { button.pressed = false; });
+  axes[0] = 0;
+  axes[1] = 0;
+
+  const analogFace = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+  analogFace[0] = { pressed: false, value: 1 };
+  assert(nesButtonsFromGamepad({ buttons: analogFace, axes }) === NES_BUTTON.A, 'button.value >= 0.5 counts as pressed');
+
+  const standardTriggers = Array.from({ length: 16 }, () => ({ pressed: false }));
+  standardTriggers[6] = { pressed: true };
+  standardTriggers[7] = { pressed: true };
+  assert(
+    nesButtonsFromGamepad({ buttons: standardTriggers, axes, mapping: 'standard' }) === 0,
+    'standard LT/RT must not map to Select/Start'
+  );
+
+  const rawButtons = Array.from({ length: 11 }, () => ({ pressed: false }));
+  const rawAxes = [0, 0, 0, 0, 0, 0, 0, 0];
+  rawButtons[7] = { pressed: true };
+  rawAxes[6] = 1;
+  rawAxes[7] = -1;
+  assert(
+    nesButtonsFromGamepad({ buttons: rawButtons, axes: rawAxes, mapping: '', id: 'Xbox Wireless Controller' }) ===
+      (NES_BUTTON.START | NES_BUTTON.UP | NES_BUTTON.RIGHT),
+    'raw Xbox HID Menu + hat map to Start and D-pad'
+  );
+
+  rawButtons[7] = { pressed: false };
+  rawButtons[6] = { pressed: true };
+  rawAxes[6] = 0;
+  rawAxes[7] = 0;
+  assert(
+    nesButtonsFromGamepad({ buttons: rawButtons, axes: rawAxes, mapping: '' }) === NES_BUTTON.SELECT,
+    'raw Xbox HID View maps to Select'
+  );
+
+  const ghost = { buttons: [], axes: [], mapping: '' };
+  const xbox = { buttons, axes, mapping: 'standard' as const };
+  const ordered = connectedGamepads([ghost, { buttons, axes, mapping: '' }, xbox]);
+  assert(ordered[0] === xbox, 'standard-mapped pads are preferred over raw or empty slots');
 }
 
 function testBusStrobe(): void {

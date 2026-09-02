@@ -44,18 +44,22 @@ npm install
 
 ### Controls
 
-| Action | Keyboard | Gamepad (standard mapping) |
+| Action | Keyboard | Gamepad |
 | --- | --- | --- |
-| D-Pad | Arrow keys | D-pad or left stick |
+| D-Pad | Arrow keys | D-pad, left stick, or Xbox hat |
 | A | `X` | A (south) or RB |
 | B | `Z` | B / X (east / west) or LB |
-| Select | `A` | Back / View / Select |
+| Select | `A` | Back / View |
 | Start | `S` | Start / Menu |
 | Pause / resume | `Space` | |
 | Reset | `R` | |
 | Cycle palette | `P` | |
 
-On-screen L/U/R/D, Select, Start, A, and B buttons hold the same inputs while pressed. The first connected gamepad is player 1 (combined with the keyboard); a second gamepad is player 2. Browsers only expose a pad after you press a button on it.
+On-screen L/U/R/D, Select, Start, A, and B buttons hold the same inputs while pressed. The first usable gamepad is player 1 (combined with the keyboard); a second gamepad is player 2. Pads with a W3C `standard` mapping are preferred if more than one device is enumerated. Browsers only expose a pad after you press a button on it.
+
+Xbox Series X|S pads work when the browser remaps them to the standard layout. Many Chrome/macOS builds do not: after the Series firmware update the pad often reports as raw HID (`mapping` is empty, product `045e:0b13`). In that layout View/Menu are buttons 6/7 (not 8/9) and the D-pad is a hat on axes 6/7, so a standard-only mapper misses Start, Select, and the D-pad. This project remaps that HID layout automatically. Face buttons and the left stick already used the same indices and were not the failure.
+
+On macOS, Chrome may also fail to expose an Xbox pad over USB (it uses a separate Xbox USB path that does not handle every Series product ID). Use Bluetooth, or try Safari. The Xbox Wireless Adapter is Windows-only.
 
 When emulation is paused, **step** advances one CPU instruction.
 
@@ -69,7 +73,7 @@ src/
   bus.ts          # System bus
   cartridge.ts    # iNES ROM loading
   nes.ts          # Emulator game loop & UI
-  controller.ts   # NES button bits and Gamepad API mapping
+  controller.ts   # NES button bits, standard Gamepad API mapping, Xbox HID fallback
   mapper/         # Cartridge mappers (000, 001, 002, 003, 004, 066)
   graphics/       # WebGPU renderer, sprites, input helpers
   index.ts        # App entry point
