@@ -236,8 +236,6 @@ export class Apu {
     let bQuarterFrameClock = false;
     let bHalfFrameClock = false;
 
-    this.globalTime += 0.3333333333 / 1789773;
-
     if (this.clockCounter % 6 == 0) {
       this.frameClockCounter++;
 
@@ -278,18 +276,15 @@ export class Apu {
         this.pulse2Sweep.clock({ target: this.pulse2Seq.reload }, true);
       }
 
-      //	if (this.useRawMode)
-      {
-        // Update Pulse1 Channel ================================
-        this.pulse1Seq.clock(this.pulse1Enable, (s: Uint32Array[0]) => {
-          // Shift right by 1 bit, wrapping around
-          s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
-        });
+      this.pulse1Seq.clock(this.pulse1Enable, (s: Uint32Array[0]) => {
+        s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
+      });
+      this.pulse2Seq.clock(this.pulse2Enable, (s: Uint32Array[0]) => {
+        s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
+      });
 
-        //	this.pulse1Sample = (double)this.pulse1Seq.output;
-      }
-      //else
-      {
+      if (this.useRawMode) {
+        this.globalTime += 0.3333333333 / 1789773;
         this.pulse1Osc.frequency =
           1789773.0 / (16.0 * (this.pulse1Seq.reload + 1));
         this.pulse1Osc.amplitude = (this.pulse1Env.output - 1) / 16.0;
@@ -303,18 +298,7 @@ export class Apu {
         )
           this.pulse1Output += (this.pulse1Sample - this.pulse1Output) * 0.5;
         else this.pulse1Output = 0;
-      }
 
-      //if (this.useRawMode)
-      {
-        // Update Pulse1 Channel ================================
-        this.pulse2Seq.clock(this.pulse2Enable, (s: Uint32Array[0]) => {
-          // Shift right by 1 bit, wrapping around
-          s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
-        });
-      }
-      //	else
-      {
         this.pulse2Osc.frequency =
           1789773.0 / (16.0 * (this.pulse2Seq.reload + 1));
         this.pulse2Osc.amplitude = (this.pulse2Env.output - 1) / 16.0;
