@@ -14,9 +14,9 @@ export class StandardImageLoader implements ImageLoader {
         sprite.height = imageFile.height;
         sprite.colData = [];
 
-        //@ts-ignore
         const c = new OffscreenCanvas(imageFile.width, imageFile.height);
-        const cxt: CanvasRenderingContext2D = c.getContext('2d')!;
+        const cxt = c.getContext('2d');
+        if (!cxt) throw new Error('2d context unavailable');
 
         cxt.drawImage(imageFile, 0, 0, imageFile.width, imageFile.height);
         const { data } = cxt.getImageData(0, 0, imageFile.width, imageFile.height);

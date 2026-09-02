@@ -38,7 +38,7 @@ export class NESGameEngine extends GameEngine {
     private screenRenderable: ImageWebGPURenderable = <ImageWebGPURenderable><unknown>undefined;
     private debugElements: Record<string, HTMLElement | null> | undefined;
 
-    constructor(private romBuffer: ArrayBuffer = new ArrayBuffer(0), public imageFile: ImageBitmap = new ImageBitmap(), private soundSampleFrequency: number = 44100) {
+    constructor(private romBuffer: ArrayBuffer | Uint8Array = new ArrayBuffer(0), public imageFile: ImageBitmap = new ImageBitmap(), private soundSampleFrequency: number = 44100) {
         super();
         this.sAppName = 'NES Emulator';
         this.nes = new Bus();

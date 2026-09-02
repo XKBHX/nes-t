@@ -4,13 +4,17 @@ export const initGPU = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanv
     const canvas = <HTMLCanvasElement>context.canvas;
     const pixelRatio = window.devicePixelRatio || 1;
     const aspectRation = canvas.clientWidth / canvas.clientHeight;
-    const size: GPUExtent3D = [ canvas.clientWidth * pixelRatio, canvas.clientHeight * pixelRatio ]
+    const width = canvas.clientWidth * pixelRatio;
+    const height = canvas.clientHeight * pixelRatio;
     const format = navigator.gpu.getPreferredCanvasFormat();
-    const compositingAlphaMode: GPUCanvasCompositingAlphaMode = 'premultiplied';
+    const alphaMode: GPUCanvasAlphaMode = 'premultiplied';
+
+    canvas.width = width;
+    canvas.height = height;
 
     console.log({ pixelRatio, aspectRation });
     console.log({ w: canvas.clientWidth, h: canvas.clientHeight });
-    context.configure({ device, format, size, compositingAlphaMode });
+    context.configure({ device, format, alphaMode });
 
     return format;
 };
