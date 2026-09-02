@@ -32,6 +32,8 @@ npm install
 | `npm run build` | Production bundle to `dist/` |
 | `npm run build:dev` | Development build |
 | `npm run watch` | Rebuild on file changes |
+| `npm run validate:mmc3` | Headless MMC3 / NMI checks |
+| `npm run validate:controller` | Headless controller mapping and $4016 strobe checks |
 
 ## Usage
 
@@ -41,18 +43,20 @@ npm install
 
 ### Controls
 
-| Action | Keyboard |
-| --- | --- |
-| D-Pad | Arrow keys |
-| A | `X` |
-| B | `Z` |
-| Select | `A` |
-| Start | `S` |
-| Pause / resume | `Space` |
-| Reset | `R` |
-| Cycle palette | `P` |
+| Action | Keyboard | Gamepad (standard mapping) |
+| --- | --- | --- |
+| D-Pad | Arrow keys | D-pad or left stick |
+| A | `X` | A (south) or RB |
+| B | `Z` | B / X (east / west) or LB |
+| Select | `A` | Back / View / Select |
+| Start | `S` | Start / Menu |
+| Pause / resume | `Space` | |
+| Reset | `R` | |
+| Cycle palette | `P` | |
 
-On-screen L/U/R/D, Select, Start, A, and B buttons mirror the same inputs. When emulation is paused, **step** advances one CPU instruction.
+On-screen L/U/R/D, Select, Start, A, and B buttons hold the same inputs while pressed. The first connected gamepad is player 1 (combined with the keyboard); a second gamepad is player 2. Browsers only expose a pad after you press a button on it.
+
+When emulation is paused, **step** advances one CPU instruction.
 
 ## Project layout
 
@@ -64,6 +68,7 @@ src/
   bus.ts          # System bus
   cartridge.ts    # iNES ROM loading
   nes.ts          # Emulator game loop & UI
+  controller.ts   # NES button bits and Gamepad API mapping
   mapper/         # Cartridge mappers (000, 001, 002, 003, 004, 066)
   graphics/       # WebGPU renderer, sprites, input helpers
   index.ts        # App entry point

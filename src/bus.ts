@@ -11,6 +11,8 @@ export class Bus {
   
   private systemClockCounter: number = 0;
   private controllerState: Uint8Array;
+  private controllerStrobe: boolean = false;
+  private controllerShiftCount: Uint8Array;
   private dmaPage: Uint8Array = new Uint8Array(1);
   private dmaAddress: Uint8Array = new Uint8Array(1);
   private dmaData: Uint8Array = new Uint8Array(1);
@@ -33,7 +35,15 @@ export class Bus {
     this.cartridge = <Cartridge><unknown>undefined;
     this.cpuRam = new Uint8Array(2048);
     this.controller = new Uint8Array(2);
-    this.controllerState = new Uint8Array(2)
+    this.controllerState = new Uint8Array(2);
+    this.controllerShiftCount = new Uint8Array(2);
+  }
+
+  private reloadControllers(): void {
+    this.controllerState[0] = this.controller[0];
+    this.controllerState[1] = this.controller[1];
+    this.controllerShiftCount[0] = 0;
+    this.controllerShiftCount[1] = 0;
   }
 
   setSampleFrequency(sampleRate: Uint32Array[0]): void {
@@ -57,9 +67,9 @@ export class Bus {
       this.dmaPage[0] = data;
       this.dmaAddress[0] = 0x00;
       this.dmaTransfer = true;
-    } else if (address >= 0x4016 && address <= 0x4017) {
-      this.controllerState[address & 0x0001] =  this.controller[address & 0x0001];
-      console.log('Controller!!!!!!!!', this.controllerState, address);
+    } else if (address === 0x4016) {
+      this.controllerStrobe = (data & 0x01) !== 0;
+      if (this.controllerStrobe) this.reloadControllers();
     }
   }
 
@@ -83,9 +93,18 @@ export class Bus {
       console.log('APU!!!!!!!!', d, address, readOnly);
       tag = 'APU';
     } else if (address >= 0x4016 && address <= 0x4017) {
-      d.data = +((this.controllerState[address & 0x0001] & 0x80) > 0);
-      this.controllerState[address & 0x0001] <<= 1;
-      console.log('Controller!!!!!!!!', d, 'State:', this.controllerState, address, readOnly);
+      const port = address & 0x0001;
+      if (this.controllerStrobe) this.reloadControllers();
+
+      if (this.controllerShiftCount[port] < 8) {
+        d.data = (this.controllerState[port] & 0x80) ? 1 : 0;
+        if (!readOnly && !this.controllerStrobe) {
+          this.controllerState[port] <<= 1;
+          this.controllerShiftCount[port]++;
+        }
+      } else {
+        d.data = 1;
+      }
       tag = 'Controller';
     }
 
@@ -108,6 +127,13 @@ export class Bus {
     this.dmaData[0] = 0x00;
     this.dmaDummy = true;
     this.dmaTransfer = false;
+    this.controller[0] = 0x00;
+    this.controller[1] = 0x00;
+    this.controllerState[0] = 0x00;
+    this.controllerState[1] = 0x00;
+    this.controllerStrobe = false;
+    this.controllerShiftCount[0] = 0;
+    this.controllerShiftCount[1] = 0;
     console.log('RAM:', this.cpuRam[0xc004]);
   }
 

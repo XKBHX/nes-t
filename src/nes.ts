@@ -1,5 +1,6 @@
 import { Bus } from './bus';
 import { Cartridge } from './cartridge';
+import { clearOpposingDirections, connectedGamepads, nesButtonsFromGamepad, packNesButtons } from './controller';
 import { GameEngine } from './graphics/engine';
 import { CYAN, DARK_BLUE, GREEN, Key, Pixel, RED, Sprite, VERY_DARK_BLUE, WHITE } from './graphics';
 import { CPU_FLAG } from './cpu';
@@ -78,8 +79,7 @@ export class NESGameEngine extends GameEngine {
         //    (<WebGPURenderer>renderer).drawImages(this.specialRenderable);
         //}
 
-        // TODO Controller stuff
-        this.updateController()
+        this.updateController();
 
         this.renderDebugger()
         if (this.emulationRun) this.executeEmulation(elapsedTime);
@@ -350,43 +350,38 @@ export class NESGameEngine extends GameEngine {
     }
 
     updateController() {
-        this.nes.controller[0] = 0x00;
-		this.nes.controller[0] |= this.getKey(Key.X).bHeld ? 0x80 : 0x00;     // A Button
-		this.nes.controller[0] |= this.getKey(Key.Z).bHeld ? 0x40 : 0x00;     // B Button
-		this.nes.controller[0] |= this.getKey(Key.A).bHeld ? 0x20 : 0x00;     // Select
-		this.nes.controller[0] |= this.getKey(Key.S).bHeld ? 0x10 : 0x00;     // Start
-		this.nes.controller[0] |= this.getKey(Key.UP).bHeld ? 0x08 : 0x00;
-		this.nes.controller[0] |= this.getKey(Key.DOWN).bHeld ? 0x04 : 0x00;
-		this.nes.controller[0] |= this.getKey(Key.LEFT).bHeld ? 0x02 : 0x00;
-		this.nes.controller[0] |= this.getKey(Key.RIGHT).bHeld ? 0x01 : 0x00;
+        this.nes.controller[0] = packNesButtons({
+            a: this.getKey(Key.X).bHeld,
+            b: this.getKey(Key.Z).bHeld,
+            select: this.getKey(Key.A).bHeld,
+            start: this.getKey(Key.S).bHeld,
+            up: this.getKey(Key.UP).bHeld,
+            down: this.getKey(Key.DOWN).bHeld,
+            left: this.getKey(Key.LEFT).bHeld,
+            right: this.getKey(Key.RIGHT).bHeld,
+        });
+        this.nes.controller[1] = 0x00;
 
         if (this.getKey(Key.SPACE).bPressed) this.emulationRun = !this.emulationRun;
-		if (this.getKey(Key.R).bPressed) this.nes.reset();
-		if (this.getKey(Key.P).bPressed) this.selectedPalette = (++this.selectedPalette) & 0x07;
+        if (this.getKey(Key.R).bPressed) this.nes.reset();
+        if (this.getKey(Key.P).bPressed) this.selectedPalette = (++this.selectedPalette) & 0x07;
 
-        if (this.gamepad && this.gamepad.connected) {
-            this.nes.controller[0] |= this.getControllerState();
-        }
-        if (this.nes.controller[0]) console.log({ c: this.nes.controller[0] });
+        const pads = typeof navigator !== 'undefined' && navigator.getGamepads
+            ? connectedGamepads(navigator.getGamepads())
+            : [];
+
+        if (pads[0]) this.nes.controller[0] |= nesButtonsFromGamepad(pads[0]);
+        this.nes.controller[0] = clearOpposingDirections(this.nes.controller[0]);
+        if (pads[1]) this.nes.controller[1] = nesButtonsFromGamepad(pads[1]);
+
+        this.consumeKeyEdges();
     }
 
     getControllerState() {
-        const state = new Uint8Array(1);
-        const gamepad = navigator.getGamepads()[0]!;
-
-        state[0] |= gamepad.buttons[1].pressed ? 0x00 : 0x00;
-        state[0] |= gamepad.buttons[2].pressed ? 0x01 : 0x00;
-        state[0] |= gamepad.buttons[8].pressed ? 0x02 : 0x00;
-        state[0] |= gamepad.buttons[9].pressed ? 0x03 : 0x00;
-        state[0] |= gamepad.buttons[12].pressed ? 0x04 : 0x00;
-        state[0] |= gamepad.buttons[13].pressed ? 0x05 : 0x00;
-        state[0] |= gamepad.buttons[14].pressed ? 0x06 : 0x00;
-        state[0] |= gamepad.buttons[15].pressed ? 0x07 : 0x00;
-
-        //console.log(this.gamepad.buttons.filter(b => b.pressed));
-        if (gamepad.buttons[0].pressed) this.selectedPalette = (++this.selectedPalette) & 0x07;
-
-        return state[0];
+        const pads = typeof navigator !== 'undefined' && navigator.getGamepads
+            ? connectedGamepads(navigator.getGamepads())
+            : [];
+        return pads[0] ? nesButtonsFromGamepad(pads[0]) : 0;
     }
 
     async setSpecialRenderable() {
@@ -419,32 +414,41 @@ export class NESGameEngine extends GameEngine {
     }
 
     setupButton() {
-        const b = <HTMLButtonElement>document.getElementById('step')!;
-        const l = <HTMLButtonElement>document.getElementById('L')!;
-        const u = <HTMLButtonElement>document.getElementById('U')!;
-        const r = <HTMLButtonElement>document.getElementById('R')!;
-        const d = <HTMLButtonElement>document.getElementById('D')!;
-        const select = <HTMLButtonElement>document.getElementById('select')!;
-        const start = <HTMLButtonElement>document.getElementById('start')!;
-        const _b = <HTMLButtonElement>document.getElementById('_b')!;
-        const _a = <HTMLButtonElement>document.getElementById('_a')!;
-
-        if (!this.emulationRun) {
-            b.addEventListener('click', e => {
+        const step = document.getElementById('step');
+        if (step) {
+            step.addEventListener('click', () => {
                 do { this.nes.clock(); } while (!this.nes.cpu.complete());
-			    do { this.nes.clock(); } while (this.nes.cpu.complete());
+                do { this.nes.clock(); } while (this.nes.cpu.complete());
                 drawCount++;
-                console.log('Controller State:', (<any>this.nes).controllerState);
             });
         }
 
-        l.addEventListener('click', e => { this.setKeyboardState('ArrowLeft', { bHeld: true, bPressed: true, bReleased: false }); });
-        u.addEventListener('click', e => { this.setKeyboardState('ArrowUp', { bHeld: true, bPressed: true, bReleased: false }); });
-        r.addEventListener('click', e => { this.setKeyboardState('ArrowRight', { bHeld: true, bPressed: true, bReleased: false }); });
-        d.addEventListener('click', e => { this.setKeyboardState('ArrowDown', { bHeld: true, bPressed: true, bReleased: false }); });
-        select.addEventListener('click', e => { this.setKeyboardState('a', { bHeld: true, bPressed: true, bReleased: false }); });
-        start.addEventListener('click', e => { this.setKeyboardState('s', { bHeld: true, bPressed: true, bReleased: false }); });
-        _b.addEventListener('click', e => { this.setKeyboardState('z', { bHeld: true, bPressed: true, bReleased: false }); });
-        _a.addEventListener('click', e => { this.setKeyboardState('x', { bHeld: true, bPressed: true, bReleased: false }); });
+        this.bindHoldButton('L', 'ArrowLeft');
+        this.bindHoldButton('U', 'ArrowUp');
+        this.bindHoldButton('R', 'ArrowRight');
+        this.bindHoldButton('D', 'ArrowDown');
+        this.bindHoldButton('select', 'a');
+        this.bindHoldButton('start', 's');
+        this.bindHoldButton('_b', 'z');
+        this.bindHoldButton('_a', 'x');
+    }
+
+    private bindHoldButton(id: string, key: string): void {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        const press = (e: PointerEvent) => {
+            e.preventDefault();
+            el.setPointerCapture(e.pointerId);
+            this.setKeyboardState(key, { bHeld: true, bPressed: true, bReleased: false });
+        };
+        const release = (e: PointerEvent) => {
+            e.preventDefault();
+            this.setKeyboardState(key, { bHeld: false, bPressed: false, bReleased: true });
+        };
+
+        el.addEventListener('pointerdown', press);
+        el.addEventListener('pointerup', release);
+        el.addEventListener('pointercancel', release);
     }
 }
