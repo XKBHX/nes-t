@@ -86,6 +86,21 @@ src/
 - WebGPU (`@webgpu/types`)
 - gl-matrix
 
+## Performance notes
+
+Firefox WebGPU is stricter about reclaiming GPU objects than Chromium. The frame path used to create a new `ImageBitmap`, render pipeline, bind group, sampler, and mapped vertex buffer every frame and never destroy them, so memory and frame time grew until the tab stalled.
+
+The display path now:
+
+- Targets **60 FPS** (one NES frame per 1/60 s, with a short catch-up cap)
+- Uploads the native 256×240 PPU framebuffer and scales 2× on the GPU with nearest-neighbor sampling
+- Reuses one screen texture, pipeline, bind group, and vertex buffer
+- Uploads pixels with `writeTexture` (256-byte row alignment) instead of `createImageBitmap`
+- Skips unused per-pixel GPU buffer and pipeline allocations in the layer renderer
+- Skips unused APU Fourier sample synthesis (audio output is not mixed yet)
+
+CPU flags, registers, and FPS stay on the HTML debug table. The old software overlay (pattern tables, nametable, `drawCpu`) is not redrawn every frame because that blit could not sustain 60 Hz.
+
 ## Notes
 
 This is a work-in-progress emulator. Accuracy and game compatibility vary by mapper and title. Bundled ROMs under `src/rom/` are for local development; distribute only ROMs you have rights to use.

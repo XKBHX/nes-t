@@ -12,6 +12,9 @@ export type GPUViewportDescriptor = {
     minDepth: number; maxDepth: number;
 }
 
+const WEBGPU_BYTES_PER_ROW_ALIGNMENT = 256;
+const RGBA_BYTES = 4;
+
 export class ImageWebGPURenderable implements WebGPURenderable {
     scale: VF2D = new VF2D(1, 1);
     offset: VF2D = new VF2D(1, 1);
@@ -19,31 +22,87 @@ export class ImageWebGPURenderable implements WebGPURenderable {
     texture: GPUTexture = <GPUTexture><unknown>undefined;
     pipelineFormat: GPUTextureFormat = 'bgra8unorm';
     viewportDescriptor: GPUViewportDescriptor = <GPUViewportDescriptor>{};
-    
-    constructor(public image: ImageBitmap, public renderIndex: number, public size: [number, number] = [100, 100]) {}
+    imageWidth: number;
+    imageHeight: number;
 
-    static async createFromSprite(sprite: Sprite, renderIndex: number, size: [number, number] = [100, 100]): Promise<ImageWebGPURenderable> {
-        const image = await ImageWebGPURenderable.createImageBitmapFromSprite(sprite);
-        return new ImageWebGPURenderable(image, renderIndex, size);
+    private pixelBuffer: Uint8Array = <Uint8Array><unknown>undefined;
+    private pixelBytesPerRow = 0;
+    private cachedPipeline: GPURenderPipeline = <GPURenderPipeline><unknown>undefined;
+    private cachedBindGroupLayout: GPUBindGroupLayout = <GPUBindGroupLayout><unknown>undefined;
+    private cachedBindGroup: GPUBindGroup = <GPUBindGroup><unknown>undefined;
+    private cachedSampler: GPUSampler = <GPUSampler><unknown>undefined;
+    private cachedVertexBuffer: GPUBuffer = <GPUBuffer><unknown>undefined;
+    private cachedTextureView: GPUTextureView = <GPUTextureView><unknown>undefined;
+
+    constructor(public image: ImageBitmap | undefined, public renderIndex: number, public size: [number, number] = [100, 100], imageWidth = 0, imageHeight = 0) {
+        this.imageWidth = imageWidth || image?.width || 0;
+        this.imageHeight = imageHeight || image?.height || 0;
+    }
+
+    static createFromSprite(sprite: Sprite, renderIndex: number, size: [number, number] = [100, 100]): ImageWebGPURenderable {
+        const renderable = new ImageWebGPURenderable(undefined, renderIndex, size, sprite.width, sprite.height);
+        renderable.updateImageFromSprite(sprite);
+        return renderable;
     }
 
     static async createImageBitmapFromSprite(sprite: Sprite): Promise<ImageBitmap> {
         const { colData, width, height } = sprite;
-        const pixelData = new Uint8ClampedArray(new ArrayBuffer(colData.length * 4));
-        
+        const pixelData = new Uint8ClampedArray(colData.length * RGBA_BYTES);
+
         for (let i = 0; i < colData.length; i++) {
-            pixelData[i * 4 + 0] = colData[i].red;
-            pixelData[i * 4 + 1] = colData[i].green;
-            pixelData[i * 4 + 2] = colData[i].blue;
-            pixelData[i * 4 + 3] = colData[i].alpha;
+            pixelData[i * RGBA_BYTES + 0] = colData[i].red;
+            pixelData[i * RGBA_BYTES + 1] = colData[i].green;
+            pixelData[i * RGBA_BYTES + 2] = colData[i].blue;
+            pixelData[i * RGBA_BYTES + 3] = colData[i].alpha;
         }
-        
+
         const imageData = new ImageData(pixelData, width, height);
         return await createImageBitmap(imageData);
     }
 
     updateImageFromSprite(sprite: Sprite): void {
-        ImageWebGPURenderable.createImageBitmapFromSprite(sprite).then(i => this.image = i);
+        const { colData, width, height } = sprite;
+        this.imageWidth = width;
+        this.imageHeight = height;
+        this.ensurePixelBuffer(width, height);
+
+        const rowStride = this.pixelBytesPerRow;
+        const buffer = this.pixelBuffer;
+
+        for (let y = 0; y < height; y++) {
+            const srcRow = y * width;
+            const dstRow = y * rowStride;
+            for (let x = 0; x < width; x++) {
+                const pixel = colData[srcRow + x];
+                const dst = dstRow + x * RGBA_BYTES;
+                buffer[dst] = pixel.red;
+                buffer[dst + 1] = pixel.green;
+                buffer[dst + 2] = pixel.blue;
+                buffer[dst + 3] = pixel.alpha;
+            }
+        }
+    }
+
+    uploadPixels(device: GPUDevice): void {
+        const texture = this.getTexture(device);
+
+        if (this.pixelBuffer && this.imageWidth > 0 && this.imageHeight > 0) {
+            device.queue.writeTexture(
+                { texture },
+                this.pixelBuffer,
+                { bytesPerRow: this.pixelBytesPerRow, rowsPerImage: this.imageHeight },
+                { width: this.imageWidth, height: this.imageHeight }
+            );
+            return;
+        }
+
+        if (this.image) {
+            device.queue.copyExternalImageToTexture(
+                { source: this.image },
+                { texture },
+                { width: this.image.width, height: this.image.height }
+            );
+        }
     }
 
     getVertexData(): Float32Array {
@@ -58,7 +117,8 @@ export class ImageWebGPURenderable implements WebGPURenderable {
     }
 
     getGPUTextureDescriptor(): GPUTextureDescriptor {
-        const { width, height } = this.image;
+        const width = this.imageWidth || this.image?.width || 1;
+        const height = this.imageHeight || this.image?.height || 1;
         const { format } = this;
         const size = { width, height };
         const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT;
@@ -71,18 +131,18 @@ export class ImageWebGPURenderable implements WebGPURenderable {
             const descriptor = this.getGPUTextureDescriptor();
             this.texture = device.createTexture(descriptor);
         }
-        
+
         return this.texture;
     }
 
     getPipelineDescriptor(device: GPUDevice):GPURenderPipelineDescriptor {
         const { pipelineFormat: format } = this;
-        
+
         const attributes: GPUVertexAttribute[] = [
             { shaderLocation: 0, format: 'float32x2', offset: 0 },
             { shaderLocation: 1, format: 'float32x2', offset: 2 * 4 },
         ];
-        
+
         const blend: GPUBlendState = { alpha: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }, color: { operation: 'add', srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' } };
         const bindGroupLayout = this.getBindGroupLayout(device);
         const buffers: GPUVertexBufferLayout[] = [{ arrayStride: 4 * 4, attributes }]
@@ -96,9 +156,11 @@ export class ImageWebGPURenderable implements WebGPURenderable {
     }
 
     getPipeline(device: GPUDevice): GPURenderPipeline {
-        const descriptor = this.getPipelineDescriptor(device);
+        if (!this.cachedPipeline) {
+            this.cachedPipeline = device.createRenderPipeline(this.getPipelineDescriptor(device));
+        }
 
-        return device.createRenderPipeline(descriptor);
+        return this.cachedPipeline;
     }
 
     getSamplerBindingLayout(): GPUSamplerBindingLayout {
@@ -110,41 +172,64 @@ export class ImageWebGPURenderable implements WebGPURenderable {
     }
 
     getBindGroupLayout(device: GPUDevice): GPUBindGroupLayout {
-        const samplerBindingLayout: GPUSamplerBindingLayout = this.getSamplerBindingLayout();
-        const textureBindingLayout: GPUTextureBindingLayout = this.getTextureBindingLayout();
-        const bindGroupLayout = device.createBindGroupLayout({ entries: [
-            { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: samplerBindingLayout },
-            { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: textureBindingLayout }
-        ] });
+        if (!this.cachedBindGroupLayout) {
+            const samplerBindingLayout: GPUSamplerBindingLayout = this.getSamplerBindingLayout();
+            const textureBindingLayout: GPUTextureBindingLayout = this.getTextureBindingLayout();
+            this.cachedBindGroupLayout = device.createBindGroupLayout({ entries: [
+                { binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: samplerBindingLayout },
+                { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: textureBindingLayout }
+            ] });
+        }
 
-        return bindGroupLayout;
+        return this.cachedBindGroupLayout;
     }
 
     getBingGroup(device: GPUDevice): GPUBindGroup {
-        const bindGroupLayout = this.getBindGroupLayout(device);
-        const texture = this.getTexture(device);
-        const sampler = device.createSampler({
-            magFilter: 'linear',
-            minFilter: 'linear',
-        });
+        if (!this.cachedBindGroup) {
+            const bindGroupLayout = this.getBindGroupLayout(device);
+            const texture = this.getTexture(device);
+            if (!this.cachedSampler) {
+                this.cachedSampler = device.createSampler({
+                    magFilter: 'nearest',
+                    minFilter: 'nearest',
+                });
+            }
+            if (!this.cachedTextureView) {
+                this.cachedTextureView = texture.createView();
+            }
 
-        return device.createBindGroup({
-            label: `Image Texture (${this.renderIndex})`,
-            layout: bindGroupLayout,
-            entries: [
-                { binding: 0, resource: sampler },
-                { binding: 1, resource: texture.createView() },
-            ]
-        });
+            this.cachedBindGroup = device.createBindGroup({
+                label: `Image Texture (${this.renderIndex})`,
+                layout: bindGroupLayout,
+                entries: [
+                    { binding: 0, resource: this.cachedSampler },
+                    { binding: 1, resource: this.cachedTextureView },
+                ]
+            });
+        }
+
+        return this.cachedBindGroup;
     }
 
     getVertexBuffer(device: GPUDevice): GPUBuffer {
-        const vertexData = this.getVertexData();
-        
-        return createGPUBuffer(device, vertexData);
+        if (!this.cachedVertexBuffer) {
+            this.cachedVertexBuffer = createGPUBuffer(device, this.getVertexData());
+        }
+
+        return this.cachedVertexBuffer;
     }
 
     setViewportDescriptor(x: number = 0, y: number = 0, width: number = 0, height: number = 0, minDepth: number = 0, maxDepth: number = 0): void {
         this.viewportDescriptor = { x, y, width, height, minDepth, maxDepth };
+    }
+
+    private ensurePixelBuffer(width: number, height: number): void {
+        const bytesPerRow = Math.ceil((width * RGBA_BYTES) / WEBGPU_BYTES_PER_ROW_ALIGNMENT) * WEBGPU_BYTES_PER_ROW_ALIGNMENT;
+        const byteLength = bytesPerRow * height;
+
+        if (!this.pixelBuffer || this.pixelBuffer.byteLength !== byteLength || this.pixelBytesPerRow !== bytesPerRow) {
+            this.pixelBuffer = new Uint8Array(byteLength);
+            this.pixelBytesPerRow = bytesPerRow;
+        }
     }
 }

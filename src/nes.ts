@@ -14,6 +14,12 @@ let count = 0;
 let drawCount = 0;
 let mapAsm;
 
+const TARGET_FPS = 60;
+const NES_WIDTH = 256;
+const NES_HEIGHT = 240;
+const DISPLAY_SCALE = 2;
+const MAX_FRAME_CATCH_UP = 0.1;
+
 export class NESGameEngine extends GameEngine {
     private nes: Bus;
     private cartridge: Cartridge = <Cartridge><unknown>undefined;
@@ -30,6 +36,7 @@ export class NESGameEngine extends GameEngine {
     private decal: Decal = <Decal><unknown>undefined;
     private specialRenderable: ImageWebGPURenderable = <ImageWebGPURenderable><unknown>undefined;
     private screenRenderable: ImageWebGPURenderable = <ImageWebGPURenderable><unknown>undefined;
+    private debugElements: Record<string, HTMLElement | null> | undefined;
 
     constructor(private romBuffer: ArrayBuffer = new ArrayBuffer(0), public imageFile: ImageBitmap = new ImageBitmap(), private soundSampleFrequency: number = 44100) {
         super();
@@ -72,83 +79,24 @@ export class NESGameEngine extends GameEngine {
     }
 
     override onUserUpdate(elapsedTime: number): boolean {
-        //console.log('User Update', elapsedTime);
-        this.clear(DARK_BLUE);
-
-        //if(this.specialRenderable) {
-        //    (<WebGPURenderer>renderer).drawImages(this.specialRenderable);
-        //}
-
         this.updateController();
-
-        this.renderDebugger()
+        this.renderDebugger();
         if (this.emulationRun) this.executeEmulation(elapsedTime);
         else this.executeDebugEmulation(elapsedTime);
 
-        const swatchSize = 6;
-        //const { width, height } = screenSprite;
-        
-        this.drawCpu(516, 2);
-
-        //for (let c = 0; c < 26; c++) {
-        //    const s = `${this.hex(c, 2)}: (${this.nes.ppu.OAM[c].x}, ${this.nes.ppu.OAM[c].y}) ID: ${this.hex(this.nes.ppu.OAM[c].id, 2)} AT: ${this.hex(this.nes.ppu.OAM[c].attribute, 2)}`;
-        //    this.drawString(516, 72 + c * 10, s);
-        //}
-
-        //this.drawString(516, 72, `${this.hex(0, 2)}: (${JSON.stringify(this.nes.ppu.OAM[0].x)}, ${this.nes.ppu.OAM[0].y}) ID: ${this.hex(this.nes.ppu.OAM[0].id, 2)} AT: ${this.hex(this.nes.ppu.OAM[0].attribute, 2)}`)
-        //this.drawString(516, 82, this.nes.ppu.OAM.length.toString());
-
-        for (let p = 0; p < 8; p++)
-        for (let s = 0; s < 4; s++)
-        this.fillRect(516 + p * (swatchSize * 5) + s * swatchSize, 340,
-        swatchSize, swatchSize, this.nes.ppu.getColorFromPaletteRam(p, s));
-        
-		this.drawRect(516 + this.selectedPalette * (swatchSize * 5) - 1, 339, (swatchSize * 4), swatchSize, WHITE);
-        
-		const pt1 = this.nes.ppu.getPatternTable(0, this.selectedPalette);
-		const pt2 = this.nes.ppu.getPatternTable(1, this.selectedPalette);
-        this.drawSprite(516, 348, pt1);
-		this.drawSprite(648, 348, pt2);
-		this.drawSprite(648, 348, this.nes.ppu.getNameTable(0));
-        const s = Sprite.createSpriteFromDimensions(16, 4);
-        s.colData = (<any>this.nes.ppu).palScreen;
         const screenSprite = this.nes.ppu.getScreen();
-		this.drawSprite(0, 0, screenSprite, 2);
-        //this.drawRam(2, 2, 0x0000, 16, 16);
-        //this.drawRam(2, 182, 0x8000, 16, 16);
-        //this.drawSprite(0, 0, s, 20);
-        //this.drawCode(516, 72, 26);
-
-        //const pattern = this.nes.ppu.getPatternTable(1, this.selectedPalette);
-        //for (let y = 0; y < 30; y++)
-        //    for (let x = 0; x < 32; x++) {
-        //        const id = (<any>this.nes.ppu).tblName[0][y * 32 + x];
-        //        this.drawPartialSprite(x * 16, y * 16, pattern, (id & 0x0f) << 3, ((id >> 4) & 0x0f) << 3, 8, 8, 2, 0);
-        //    }
+        if (!this.screenRenderable) {
+            this.screenRenderable = ImageWebGPURenderable.createFromSprite(
+                screenSprite,
+                0,
+                [NES_WIDTH * DISPLAY_SCALE, NES_HEIGHT * DISPLAY_SCALE]
+            );
+        }
+        this.screenRenderable.updateImageFromSprite(screenSprite);
+        (<WebGPURenderer>renderer).drawImages(this.screenRenderable);
 
         this.clockCount++;
-        //const pos = this.getWindowMouse();
-        //console.log('Pos', pos);
-        //this.clear(VERY_DARK_BLUE);
-        //(<WebGPURenderer>renderer).drawImage(this.sprite, new VF2D(2, 2), new VF2D(pos.x, pos.y), this.imageFile);
-        //(<WebGPURenderer>renderer).drawImage(this.sprite, new VF2D(1, 1), new VF2D(500, 500), this.imageFile);
-        //this.drawDecal(pos, this.decal, new VF2D(0.1, 0.1), RED);
-        //this.drawSprite(pos.x, pos.y, this.sprite);
-        //if (count < 3) console.log('Decal', this.decal);
-
-        //const renderables = [ new ImageWebGPURenderable(this.imageFile, 0), new ImageWebGPURenderable(this.imageFile, 1)];
-        //(<WebGPURenderer>renderer).drawImages(...renderables);
-        //console.log('Spritedddd', this.sprite);
-        
-        if (elapsedTime < 50) console.log('Screen Sprite', screenSprite, elapsedTime, performance.now());
-        if (!this.screenRenderable) ImageWebGPURenderable.createFromSprite(this.pDrawTarget, 0, [this.vScreenSize.x * this.vPixelSize.x, this.vScreenSize.y * this.vPixelSize.y]).then(r => this.screenRenderable = r)
-        if (this.screenRenderable) { this.screenRenderable.updateImageFromSprite(this.pDrawTarget); (<WebGPURenderer>renderer).drawImages(this.screenRenderable); }
-        //ImageWebGPURenderable.createFromSprite(this.pDrawTarget, 0, [1560, 960]).then(r => (<WebGPURenderer>renderer).drawImages(r));
-        //setTimeout(console.log, 3000);
-        
         count++;
-        //console.log('Position', pos);
-
         return true;
     }
         
@@ -156,14 +104,14 @@ export class NESGameEngine extends GameEngine {
     override configureSystem(): void {}
 
     executeEmulation(elapsedTime: number): void {
-        if (this.residualTime > 0.0)
-            this.residualTime -= elapsedTime;
-		else
-		{
-			this.residualTime += (1.0 / 60.0) - elapsedTime;
-			do { this.nes.clock(); } while (!this.nes.ppu.frameComplete);
+        const frameTime = 1.0 / TARGET_FPS;
+        this.accumulatedTime += Math.min(elapsedTime, MAX_FRAME_CATCH_UP);
+
+        while (this.accumulatedTime >= frameTime) {
+            do { this.nes.clock(); } while (!this.nes.ppu.frameComplete);
             this.nes.ppu.frameComplete = false;
-		}
+            this.accumulatedTime -= frameTime;
+        }
     }
 
     executeDebugEmulation(elapsedTime: number): void {
@@ -187,22 +135,42 @@ export class NESGameEngine extends GameEngine {
     renderDebugger(): void {
         //console.log('Time Delta', Date.now() - this.currentTime);
         const fpsCount = Math.floor(this.clockCount / ((Date.now() - this.currentTime) / 1000));
-        const n = document.getElementById('n')!;
-        const v = document.getElementById('v')!;
-        const u = document.getElementById('u')!;
-        const b = document.getElementById('b')!;
-        const d = document.getElementById('d')!;
-        const i = document.getElementById('i')!;
-        const z = document.getElementById('z')!;
-        const c = document.getElementById('c')!;
+        if (!this.debugElements) {
+            this.debugElements = {
+                n: document.getElementById('n'),
+                v: document.getElementById('v'),
+                u: document.getElementById('u'),
+                b: document.getElementById('b'),
+                d: document.getElementById('d'),
+                i: document.getElementById('i'),
+                z: document.getElementById('z'),
+                c: document.getElementById('c'),
+                a: document.getElementById('a'),
+                x: document.getElementById('x'),
+                y: document.getElementById('y'),
+                sp: document.getElementById('sp'),
+                pc: document.getElementById('pc'),
+                fps: document.getElementById('fps'),
+                cycles: document.getElementById('cycles'),
+            };
+        }
+
+        const n = this.debugElements.n!;
+        const v = this.debugElements.v!;
+        const u = this.debugElements.u!;
+        const b = this.debugElements.b!;
+        const d = this.debugElements.d!;
+        const i = this.debugElements.i!;
+        const z = this.debugElements.z!;
+        const c = this.debugElements.c!;
     
-        const a = document.getElementById('a')!;
-        const x = document.getElementById('x')!;
-        const y = document.getElementById('y')!;
-        const sp = document.getElementById('sp')!;
-        const pc = document.getElementById('pc')!;
-        const fps = document.getElementById('fps')!;
-        const cycles = document.getElementById('cycles')!;
+        const a = this.debugElements.a!;
+        const x = this.debugElements.x!;
+        const y = this.debugElements.y!;
+        const sp = this.debugElements.sp!;
+        const pc = this.debugElements.pc!;
+        const fps = this.debugElements.fps!;
+        const cycles = this.debugElements.cycles!;
     
         const positiveColor = 'blue';
         const negativeColor = 'red';
@@ -211,45 +179,21 @@ export class NESGameEngine extends GameEngine {
     
         //console.log(this.currentTime);
     
-        if (n && this.nes.cpu.getFlag(CPU_FLAG.N) !== 0x00) {
-            n.style.fontWeight = positiveWeight;
-            n.style.color = positiveColor;
-        } else if(n) { n.style.fontWeight = negativeWeight; n.style.color = negativeColor; }
-        if (v && this.nes.cpu.getFlag(CPU_FLAG.V) !== 0x00) {
-            v.style.fontWeight = positiveWeight;
-            v.style.color = positiveColor;
-        } else if(v) { v.style.fontWeight = negativeWeight; v.style.color = negativeColor; }
-        if (u && this.nes.cpu.getFlag(CPU_FLAG.U) !== 0x00) {
-            u.style.fontWeight = positiveWeight;
-            u.style.color = positiveColor;
-        } else if(u) { u.style.fontWeight = negativeWeight; u.style.color = negativeColor; }
-        if (b && this.nes.cpu.getFlag(CPU_FLAG.B) !== 0x00) {
-            b.style.fontWeight = positiveWeight;
-            b.style.color = positiveColor;
-        } else if(b) { b.style.fontWeight = negativeWeight; b.style.color = negativeColor; }
-        if (d && this.nes.cpu.getFlag(CPU_FLAG.D) !== 0x00) {
-            d.style.fontWeight = positiveWeight;
-            d.style.color = positiveColor;
-        } else if(d) { d.style.fontWeight = negativeWeight; d.style.color = negativeColor; }
-        if (i && this.nes.cpu.getFlag(CPU_FLAG.I) !== 0x00) {
-            i.style.fontWeight = positiveWeight;
-            i.style.color = positiveColor;
-        } else if(i) { i.style.fontWeight = negativeWeight; i.style.color = negativeColor; }
-        if (z && this.nes.cpu.getFlag(CPU_FLAG.Z) !== 0x00) {
-            z.style.fontWeight = positiveWeight;
-            z.style.color = positiveColor;
-        } else if(z) { z.style.fontWeight = negativeWeight; z.style.color = negativeColor; }
-        if (c && this.nes.cpu.getFlag(CPU_FLAG.C) !== 0x00) {
-            c.style.fontWeight = positiveWeight;
-            c.style.color = positiveColor;
-        } else if(c) { c.style.fontWeight = negativeWeight; c.style.color = negativeColor; }
-        if (pc) { pc.innerHTML = ` $${this.hex(this.nes.cpu.pc[0], 4)} [${String(this.nes.cpu.pc)}]`; }
-        if (a) { a.innerHTML = ` $${this.hex(this.nes.cpu.a[0], 2)}   [${String(this.nes.cpu.a)}]`; }
-        if (x) { x.innerHTML = ` $${this.hex(this.nes.cpu.x[0], 2)}   [${String(this.nes.cpu.x[0])}]`; }
-        if (y) { y.innerHTML = ` $${this.hex(this.nes.cpu.y[0], 2)}   [${String(this.nes.cpu.y)}]`; }
-        if (sp) { sp.innerHTML = ` $${this.hex(this.nes.cpu.stkp[0], 4)} [${String(this.nes.cpu.stkp)}]`; }
-        if (fps) { fps.innerHTML = ` ${fpsCount}` }
-        if (cycles) { cycles.innerHTML = ` ${this.nes.cpu.cycles}` }
+        this.setFlagStyle(n, this.nes.cpu.getFlag(CPU_FLAG.N) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(v, this.nes.cpu.getFlag(CPU_FLAG.V) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(u, this.nes.cpu.getFlag(CPU_FLAG.U) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(b, this.nes.cpu.getFlag(CPU_FLAG.B) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(d, this.nes.cpu.getFlag(CPU_FLAG.D) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(i, this.nes.cpu.getFlag(CPU_FLAG.I) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(z, this.nes.cpu.getFlag(CPU_FLAG.Z) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setFlagStyle(c, this.nes.cpu.getFlag(CPU_FLAG.C) !== 0x00, positiveColor, negativeColor, positiveWeight, negativeWeight);
+        this.setDebugText(pc, ` $${this.hex(this.nes.cpu.pc[0], 4)} [${String(this.nes.cpu.pc)}]`);
+        this.setDebugText(a, ` $${this.hex(this.nes.cpu.a[0], 2)}   [${String(this.nes.cpu.a)}]`);
+        this.setDebugText(x, ` $${this.hex(this.nes.cpu.x[0], 2)}   [${String(this.nes.cpu.x[0])}]`);
+        this.setDebugText(y, ` $${this.hex(this.nes.cpu.y[0], 2)}   [${String(this.nes.cpu.y)}]`);
+        this.setDebugText(sp, ` $${this.hex(this.nes.cpu.stkp[0], 4)} [${String(this.nes.cpu.stkp)}]`);
+        this.setDebugText(fps, ` ${fpsCount}`);
+        this.setDebugText(cycles, ` ${this.nes.cpu.cycles}`);
 
         //console.log('Reg', this.nes.cpu.a, this.nes.cpu.x, this.nes.cpu.y);
     }
@@ -431,6 +375,18 @@ export class NESGameEngine extends GameEngine {
         this.bindHoldButton('start', 's');
         this.bindHoldButton('_b', 'z');
         this.bindHoldButton('_a', 'x');
+    }
+
+    private setDebugText(el: HTMLElement | null, value: string): void {
+        if (el && el.textContent !== value) el.textContent = value;
+    }
+
+    private setFlagStyle(el: HTMLElement | null, on: boolean, positiveColor: string, negativeColor: string, positiveWeight: string, negativeWeight: string): void {
+        if (!el) return;
+        const color = on ? positiveColor : negativeColor;
+        const weight = on ? positiveWeight : negativeWeight;
+        if (el.style.color !== color) el.style.color = color;
+        if (el.style.fontWeight !== weight) el.style.fontWeight = weight;
     }
 
     private bindHoldButton(id: string, key: string): void {

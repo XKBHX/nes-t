@@ -90,7 +90,6 @@ export class Bus {
       tag = 'PPU';
     } else if (address == 0x4015) {
       d.data = this.apu.cpuRead(address);
-      console.log('APU!!!!!!!!', d, address, readOnly);
       tag = 'APU';
     } else if (address >= 0x4016 && address <= 0x4017) {
       const port = address & 0x0001;

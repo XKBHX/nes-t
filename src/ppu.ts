@@ -244,7 +244,6 @@ export class Ppu {
           break;
 
         case 0x0004:
-          /* if (this.oamAddress[0] > 63)  */console.log('OAM Address', this.oamAddress);
           const oamIndex = this.oamAddress[0] >> 2;
           const regIndex = this.oamAddress[0] % 4;
           //data = this.OAM[this.oamAddress[0]].reg[0];

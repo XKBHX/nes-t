@@ -1457,11 +1457,10 @@ export abstract class GameEngine {
         //console.log('Core Update', this);
 		const step: FrameRequestCallback = (s) => {
 			this.m_tp2 = s;
-			const elapsedTime = this.m_tp2 - this.m_tp1;
+			const elapsedMs = this.m_tp2 - this.m_tp1;
 			this.m_tp1 = this.m_tp2;
 
-			// Our time per frame coefficient
-			let fElapsedTime = elapsedTime;
+			const fElapsedTime = elapsedMs / 1000;
 			this.fLastElapsed = fElapsedTime;
 
 			// Some platforms will need to check for events
@@ -1475,7 +1474,6 @@ export abstract class GameEngine {
 					//pKeys[i].bReleased = false;
 
 					if (!this.compareButtonStateIsEqual(pStateNew[i], pStateOld[i])) {
-						console.log('KB State Change');
 						if (pStateNew[i]) {
 							pKeys[i].bPressed = !pKeys[i].bHeld;
 							pKeys[i].bHeld = true;
@@ -1507,7 +1505,7 @@ export abstract class GameEngine {
 			for (const ext of this.vExtensions) bExtensionBlockFrame ||= ext.onBeforeUserUpdate(fElapsedTime);
 
 			if (!bExtensionBlockFrame) {
-				if (!this.onUserUpdate(s)) { this.bAtomActive = false; }
+				if (!this.onUserUpdate(fElapsedTime)) { this.bAtomActive = false; }
 			}
 
 			for (const ext of this.vExtensions) ext.onAfterUserUpdate(fElapsedTime);
@@ -1576,8 +1574,8 @@ export abstract class GameEngine {
 		this.vLayers[0].show = true;
 		this.setDrawTarget(undefined);
 
-		this.m_tp1 = Date.now();
-		this.m_tp2 = Date.now();
+		this.m_tp1 = performance.now();
+		this.m_tp2 = this.m_tp1;
     }
 
     updateMouseState(button: Int32Array[0], state: HWButton) { this.pMouseNewState[button] = state; }
