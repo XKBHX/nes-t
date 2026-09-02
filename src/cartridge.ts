@@ -32,7 +32,7 @@ export class Cartridge {
     private cHRMemory: Uint8Array = <Uint8Array><unknown>undefined;
     private mapper: Mapper = <Mapper><unknown>undefined;
 
-    constructor(private buffer: ArrayBuffer = new ArrayBuffer(0)) {
+    constructor(private buffer: ArrayBuffer | Uint8Array = new ArrayBuffer(0)) {
         let header = Cartridge.parseHeader(buffer);
         this.imgValid = false;
 
@@ -94,7 +94,7 @@ export class Cartridge {
 		this.imgValid = true;
     }
 
-    static parseHeader(data: ArrayBuffer): Header {
+    static parseHeader(data: ArrayBuffer | Uint8Array): Header {
         const decoder = new TextDecoder();
         
         const header: Header = <Header><unknown>{};

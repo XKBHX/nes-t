@@ -267,7 +267,7 @@ const createCube = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasCo
         
         createTransform(modelMatrix, vec3.fromValues(0, 0, 0), rotation)
         mat4.multiply(mvpMatrix, vpMatrix, modelMatrix)
-        device.queue.writeBuffer(uniformBuffer, 0, <ArrayBuffer>mvpMatrix)
+        device.queue.writeBuffer(uniformBuffer, 0, new Float32Array(mvpMatrix))
         view = context.getCurrentTexture().createView()
         attachments[0].view = view
         
@@ -298,7 +298,11 @@ const init = async () => {
     if (!adapter) throw new Error('No GPU adpters are available')
     
     if (!device) device = await adapter.requestDevice()
-    if (!context) context = canvas.getContext('webgpu')!
+    if (!context) {
+        const gpuContext = canvas.getContext('webgpu') as GPUCanvasContext | null;
+        if (!gpuContext) throw new Error('WebGPU context unavailable');
+        context = gpuContext;
+    }
     
     const format = initGPU(adapter, device, context)
     const webGPURenderer = <WebGPURenderer>renderer
