@@ -28,7 +28,7 @@ export class Ppu {
   private fineX: Uint8Array = new Uint8Array(1);
   private addressLatch: Uint8Array = new Uint8Array(1);
   private ppuDataBuffer: Uint8Array = new Uint8Array(1);
-  private scanline: Uint16Array = new Uint16Array(1);
+  private scanline: Int16Array = new Int16Array(1);
   private cycle: Uint16Array = new Uint16Array(1);
   private oddFrame: boolean = false;
   private bgNextTileId: Uint8Array = new Uint8Array(1);
@@ -64,7 +64,7 @@ export class Ppu {
     this.control = new PPUCtrl();
     this.vRamAddress = new LoopyRegister();
     this.tRamAddress = new LoopyRegister();
-    this.spriteScanline = [];
+    this.spriteScanline = Ppu.populateSpriteScanline();
     this.spriteCount = 0;
 
     this.OAM = Ppu.populateOAM();
@@ -149,6 +149,12 @@ export class Ppu {
     }
 
     return oam;
+  }
+
+  static populateSpriteScanline(): ObjectAttributeEntry[] {
+    const sprites: ObjectAttributeEntry[] = [];
+    for (let i = 0; i < 8; i++) sprites.push(new ObjectAttributeEntry());
+    return sprites;
   }
   
   getScreen(): Sprite {
@@ -573,18 +579,13 @@ export class Ppu {
       }
 
       if (this.cycle[0] === 257 && this.scanline[0] >= 0) {
-        this.spriteScanline.fill(
-          new ObjectAttributeEntry(),
-          0,
-          8
-        ) /* sizeof(sObjectAttributeEntry) */;
-
-        this.spriteCount = 0;
-
         for (let i = 0; i < 8; i++) {
+          this.spriteScanline[i].reg.fill(0xff);
           this.spriteShifterPatternLo[i] = 0;
           this.spriteShifterPatternHi[i] = 0;
         }
+
+        this.spriteCount = 0;
 
         let nOAMEntry = 0;
 
@@ -603,8 +604,7 @@ export class Ppu {
                 this.spriteZeroHitPossible = true;
               }
 
-              this.spriteScanline[this.spriteCount] =
-                this.OAM[nOAMEntry] /* sizeof(sObjectAttributeEntry)) */;
+              this.spriteScanline[this.spriteCount].reg.set(this.OAM[nOAMEntry].reg);
             }
             this.spriteCount++;
           }
@@ -766,7 +766,7 @@ export class Ppu {
       }
 
       if (this.spriteZeroHitPossible && this.spriteZeroBeingRendered) {
-        if (this.mask.render_background & this.mask.render_sprites) {
+        if (this.mask.render_background && this.mask.render_sprites) {
           if (
             !(this.mask.render_background_left | this.mask.render_sprites_left)
           ) {
