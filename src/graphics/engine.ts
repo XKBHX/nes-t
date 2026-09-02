@@ -1606,8 +1606,14 @@ export abstract class GameEngine {
 		return s.join('');
 	}
 
+	consumeKeyEdges(): void {
+		for (const key of this.pKeyboardState) {
+			key.bPressed = false;
+			key.bReleased = false;
+		}
+	}
+
 	setKeyboardState(key: string, button: HWButton): void {
-		console.log('GE::setKeyboardState()/button', `'${key}'`, button);
 		/* switch(key) {
 			case 'a':
 			case 'A':
@@ -1644,45 +1650,24 @@ export abstract class GameEngine {
 		const keyEnum = key.toUpperCase();
 
 		if (keyEnum in Key) {
-			//console.log('Key Index:', <any>Key[<any>keyEnum]);
-			const keyIndex:number = (<any>Key)[keyEnum];
-			this.pKeyboardState[keyIndex].bHeld = button.bHeld;
-			this.pKeyboardState[keyIndex].bPressed = button.bPressed;
-			this.pKeyboardState[keyIndex].bReleased = button.bHeld;
-			console.log('Key:', keyIndex, 'C:', this.getKey(Key.C));
+			this.applyKeyState((<any>Key)[keyEnum], button);
 		} else {
 			switch (key) {
 				case 'ArrowUp':
-					this.pKeyboardState[Key.UP].bHeld = button.bHeld;
-					this.pKeyboardState[Key.UP].bPressed = button.bPressed;
-					this.pKeyboardState[Key.UP].bReleased = button.bHeld;
-					console.log(key, this.getKey(Key.UP))
+					this.applyKeyState(Key.UP, button);
 					break;
-				
 				case 'ArrowDown':
-					this.pKeyboardState[Key.DOWN].bHeld = button.bHeld;
-					this.pKeyboardState[Key.DOWN].bPressed = button.bPressed;
-					this.pKeyboardState[Key.DOWN].bReleased = button.bHeld;
+					this.applyKeyState(Key.DOWN, button);
 					break;
-				
 				case 'ArrowLeft':
-					this.pKeyboardState[Key.LEFT].bHeld = button.bHeld;
-					this.pKeyboardState[Key.LEFT].bPressed = button.bPressed;
-					this.pKeyboardState[Key.LEFT].bReleased = button.bHeld;
+					this.applyKeyState(Key.LEFT, button);
 					break;
-				
 				case 'ArrowRight':
-					this.pKeyboardState[Key.RIGHT].bHeld = button.bHeld;
-					this.pKeyboardState[Key.RIGHT].bPressed = button.bPressed;
-					this.pKeyboardState[Key.RIGHT].bReleased = button.bHeld;
+					this.applyKeyState(Key.RIGHT, button);
 					break;
-				
 				case ' ':
-					this.pKeyboardState[Key.SPACE].bHeld = button.bHeld;
-					this.pKeyboardState[Key.SPACE].bPressed = button.bPressed;
-					this.pKeyboardState[Key.SPACE].bReleased = button.bHeld;
+					this.applyKeyState(Key.SPACE, button);
 					break;
-				
 				default:
 					break;
 			}
@@ -1690,6 +1675,12 @@ export abstract class GameEngine {
 		//console.log('Current State', this.pKeyboardState);
 		//console.log('New State', this.pKeyNewState);
 		//console.log('Old State', this.pKeyOldState);
+	}
+
+	private applyKeyState(key: Key, button: HWButton): void {
+		this.pKeyboardState[key].bHeld = button.bHeld;
+		this.pKeyboardState[key].bPressed = button.bPressed;
+		this.pKeyboardState[key].bReleased = button.bReleased;
 	}
 
 	compareButtonStateIsEqual(b1: HWButton, b2: HWButton): boolean {

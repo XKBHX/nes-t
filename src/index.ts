@@ -39,13 +39,13 @@ const SOUND_SAMPLE_FREQUENCY = 44100;
 const canvas: HTMLCanvasElement = document.querySelector('canvas')!
 const input: HTMLInputElement = <HTMLInputElement>document.getElementById('file')!
 const imageInput: HTMLInputElement = <HTMLInputElement>document.getElementById('imagefile')!
-const createCamera = require('3d-view-controls')
+//const createCamera = require('3d-view-controls')
 
 window.addEventListener('gamepadconnected', async (e: GamepadEvent) => {
     console.log(e)
     gamePad = e.gamepad;
     console.log('Gamepad:', gamePad);
-    nesEngine.connectGamepad(gamePad);
+    if (nesEngine) nesEngine.connectGamepad(gamePad);
 
     audioContext = new AudioContext();
     //const osc = audioContext.createOscillator();
@@ -64,19 +64,20 @@ window.addEventListener('gamepadconnected', async (e: GamepadEvent) => {
 
 window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
     console.log(e)
-    nesEngine.disconnectGamepad();
+    if (nesEngine) nesEngine.disconnectGamepad();
 })
 
-window.addEventListener('keydown', e => {
-    //console.log('KeyDown', e.key, e.key === 'a' ? Key.A: '')
+const preventScrollKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']);
 
-    if (!nesEngine) return;
+window.addEventListener('keydown', e => {
+    if (preventScrollKeys.has(e.key)) e.preventDefault();
+    if (!nesEngine || e.repeat) return;
 
     nesEngine.setKeyboardState(e.key, { bHeld: true, bPressed: true, bReleased: false })
-
 })
 
 window.addEventListener('keyup', e => {
+    if (preventScrollKeys.has(e.key)) e.preventDefault();
     if (!nesEngine) return;
 
     nesEngine.setKeyboardState(e.key, { bHeld: false, bPressed: false, bReleased: true })
@@ -233,7 +234,7 @@ const createCube = (adapter: GPUAdapter, device: GPUDevice, context: GPUCanvasCo
     const uniformBufferUsage = GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 
     let rotation = vec3.fromValues(0, 0, 0)
-    let camera = createCamera(canvas, vp.cameraOptions)
+    //let camera = createCamera(canvas, vp.cameraOptions)
     
     const size = 64
     const uniformBuffer = createEmptyGPUBuffer(device, size, uniformBufferUsage)
@@ -308,6 +309,10 @@ const init = async () => {
 
     nesEngine.construct(canvas.width, canvas.height, 1, 1)
     nesEngine.start()
+
+    for (const pad of navigator.getGamepads()) {
+        if (pad) nesEngine.connectGamepad(pad);
+    }
     
     console.log('Screean Size', nesEngine.screenWidth(), nesEngine.screenHeight())
 };
