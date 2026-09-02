@@ -3,6 +3,9 @@ dist
 .DS_Store
 **/.DS_Store
 
+# Local HTTPS certs (regenerate with npm run cert:generate)
+certs/*.pem
+
 # ROM / asset dumps
 src/rom/
 

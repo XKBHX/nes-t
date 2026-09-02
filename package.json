@@ -10,6 +10,7 @@
     "build:prod": "webpack --mode=production --config-node-env=production",
     "watch": "webpack --watch",
     "serve": "webpack serve",
+    "cert:generate": "bash scripts/generate-dev-cert.sh",
     "validate:mmc3": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-mmc3.ts",
     "validate:controller": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-controller.ts",
     "validate:nestest": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-nestest.ts"

@@ -17,7 +17,7 @@
             "type": "pwa-chrome",
             "request": "launch",
             "name": "NES Emulator",
-            "url": "http://localhost:8081",
+            "url": "https://localhost:8082",
             "webRoot": "${workspaceFolder}",
             "sourceMaps": true,
             "sourceMapPathOverrides": {
