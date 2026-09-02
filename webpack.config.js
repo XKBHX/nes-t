@@ -17,8 +17,12 @@ const config = {
   devtool: 'inline-source-map',
   devServer: {
     open: true,
-    host: 'localhost',
-    port: 8082
+    host: '::',
+    port: 8082,
+    allowedHosts: 'all',
+    client: {
+      webSocketURL: 'auto://0.0.0.0:0/ws',
+    },
   },
   plugins: [
     new HtmlWebpackPlugin({
