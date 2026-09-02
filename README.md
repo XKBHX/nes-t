@@ -28,7 +28,8 @@ npm install
 
 | Command | Description |
 | --- | --- |
-| `npm run serve` | Start webpack-dev-server at `http://localhost:8082` |
+| `npm run serve` | Start webpack-dev-server at `https://localhost:8082` |
+| `npm run cert:generate` | Write a self-signed cert covering localhost and the configured public IPs |
 | `npm run build` | Production bundle to `dist/` |
 | `npm run build:dev` | Development build |
 | `npm run watch` | Rebuild on file changes |
@@ -38,9 +39,10 @@ npm install
 
 ## Usage
 
-1. Run `npm run serve` and open the app in a WebGPU-capable browser.
-2. Load a `.nes` ROM with **Choose ROM**, or use the ROM imported in `src/index.ts`.
-3. Play with keyboard, on-screen buttons, or a connected gamepad.
+1. Run `npm run cert:generate` once (if `certs/*.pem` are missing), then `npm run serve` and open the app in a WebGPU-capable browser. The first visit to a self-signed host will show a browser warning; continue past it for local development.
+2. Remote access (same cert SANs): `https://73.204.187.74:8082` or `https://[2601:587:100:9770:5c6d:48fc:8d21:66fe]:8082`.
+3. Load a `.nes` ROM with **Choose ROM**, or use the ROM imported in `src/index.ts`.
+4. Play with keyboard, on-screen buttons, or a connected gamepad.
 
 ### Controls
 

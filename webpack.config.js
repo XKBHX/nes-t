@@ -1,10 +1,29 @@
 // Generated using webpack-cli https://github.com/webpack/webpack-cli
 
+const fs = require('fs');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const WorkboxWebpackPlugin = require('workbox-webpack-plugin');
 
 const stylesHandler = 'style-loader';
+
+const certFile = path.resolve(__dirname, 'certs/localhost.pem');
+const keyFile = path.resolve(__dirname, 'certs/localhost-key.pem');
+const isServing = process.argv.includes('serve');
+
+let httpsServer;
+if (isServing) {
+  if (!fs.existsSync(certFile) || !fs.existsSync(keyFile)) {
+    throw new Error('Missing HTTPS certs. Run: npm run cert:generate');
+  }
+  httpsServer = {
+    type: 'https',
+    options: {
+      key: fs.readFileSync(keyFile),
+      cert: fs.readFileSync(certFile),
+    },
+  };
+}
 
 const config = {
   entry: './src/index.ts',
@@ -18,6 +37,7 @@ const config = {
     host: '::',
     port: 8082,
     allowedHosts: 'all',
+    ...(httpsServer ? { server: httpsServer } : {}),
     client: {
       webSocketURL: 'auto://0.0.0.0:0/ws',
     },
