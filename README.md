@@ -34,6 +34,7 @@ npm install
 | `npm run watch` | Rebuild on file changes |
 | `npm run validate:mmc3` | Headless MMC3 / NMI checks |
 | `npm run validate:controller` | Headless controller mapping and $4016 strobe checks |
+| `npm run validate:nestest` | Headless nestest.nes official opcode log and $02/$03 checks |
 
 ## Usage
 
