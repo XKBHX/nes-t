@@ -8,6 +8,8 @@ export class Bus {
   private audioGlobalTime: number = 0.0;
   private audioTimePerNESClock: number = 0.0;
   private audioTimePerSystemSample: number = 0.0;
+  private audioMixAccum: number = 0.0;
+  private audioMixCount: number = 0;
   
   private systemClockCounter: number = 0;
   private controllerState: Uint8Array;
@@ -49,6 +51,7 @@ export class Bus {
   setSampleFrequency(sampleRate: Uint32Array[0]): void {
     this.audioTimePerSystemSample = 1.0 / sampleRate;
     this.audioTimePerNESClock = 1.0 / 5369318.0;
+    this.apu.setOutputSampleRate(sampleRate);
   }
 
   cpuWrite(address: Uint16Array[0], data: Uint8Array[0]): void {
@@ -120,6 +123,7 @@ export class Bus {
     this.cartridge.reset();
     this.cpu.reset();
     this.ppu.reset();
+    this.apu.reset();
     this.systemClockCounter = 0;
     this.dmaPage[0] = 0x00;
     this.dmaAddress[0] = 0x00;
@@ -133,6 +137,9 @@ export class Bus {
     this.controllerStrobe = false;
     this.controllerShiftCount[0] = 0;
     this.controllerShiftCount[1] = 0;
+    this.audioTime = 0;
+    this.audioMixAccum = 0;
+    this.audioMixCount = 0;
     console.log('RAM:', this.cpuRam[0xc004]);
   }
 
@@ -168,10 +175,15 @@ export class Bus {
 
     let audioSampleReady = false;
     this.audioTime += this.audioTimePerNESClock;
+    this.audioMixAccum += this.apu.mixRaw();
+    this.audioMixCount++;
 
     if (this.audioTime >= this.audioTimePerSystemSample) {
       this.audioTime -= this.audioTimePerSystemSample;
-      //this.audioSample = this.apu.getOutputSample();
+      const mixed = this.audioMixCount > 0 ? this.audioMixAccum / this.audioMixCount : 0;
+      this.audioSample = this.apu.filterSample(mixed);
+      this.audioMixAccum = 0;
+      this.audioMixCount = 0;
       audioSampleReady = true;
     }
 

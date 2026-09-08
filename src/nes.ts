@@ -1,3 +1,4 @@
+import { NesAudioOutput } from './audio';
 import { Bus } from './bus';
 import { Cartridge } from './cartridge';
 import { clearOpposingDirections, connectedGamepads, nesButtonsFromGamepad, packNesButtons } from './controller';
@@ -14,7 +15,7 @@ let count = 0;
 let drawCount = 0;
 let mapAsm;
 
-const TARGET_FPS = 60;
+const TARGET_FPS = 60.098814;
 const NES_WIDTH = 256;
 const NES_HEIGHT = 240;
 const DISPLAY_SCALE = 2;
@@ -27,7 +28,7 @@ export class NESGameEngine extends GameEngine {
     private gamepad: Gamepad = <Gamepad><unknown>undefined;
     private residualTime: number;
     private selectedPalette: number;
-    private audio: [number, number, number, number];
+    private audioOut: NesAudioOutput;
     private accumulatedTime: number;
     private mapAsm: Record<number, string> = {};
     private clockCount = 0;
@@ -46,7 +47,7 @@ export class NESGameEngine extends GameEngine {
         this.emulationRun = true;
         this.residualTime = 0.0;
         this.selectedPalette = 0x00;
-        this.audio = [0, 0, 0, 0];
+        this.audioOut = new NesAudioOutput(soundSampleFrequency);
         this.accumulatedTime = 0.0;
 
         document.addEventListener('mousemove', e => {
@@ -66,7 +67,7 @@ export class NESGameEngine extends GameEngine {
         this.nes.reset();
         console.log('NES Cartridge', this.nes.cartridge, this.nes.ppu);
 
-        this.nes.setSampleFrequency(this.soundSampleFrequency);
+        this.nes.setSampleFrequency(this.audioOut.sampleRate);
         //this.sprite = Sprite.createSpriteFromFile(this.imageFile);
         //this.decal = new Decal(this.sprite);
         //console.log(this.sprite);
@@ -108,25 +109,32 @@ export class NESGameEngine extends GameEngine {
         this.accumulatedTime += Math.min(elapsedTime, MAX_FRAME_CATCH_UP);
 
         while (this.accumulatedTime >= frameTime) {
-            do { this.nes.clock(); } while (!this.nes.ppu.frameComplete);
+            do { this.clockNes(); } while (!this.nes.ppu.frameComplete);
             this.nes.ppu.frameComplete = false;
+            this.audioOut.flush();
             this.accumulatedTime -= frameTime;
         }
+    }
+
+    async unlockAudio(): Promise<boolean> {
+        const unlocked = await this.audioOut.unlock();
+        this.nes.setSampleFrequency(this.audioOut.sampleRate);
+        return unlocked;
     }
 
     executeDebugEmulation(elapsedTime: number): void {
         if (this.getKey(Key.C).bPressed) {
             console.log('C Pressed State', this.getKey(Key.C));
-            do { this.nes.clock(); } while (!this.nes.cpu.complete());
-			do { this.nes.clock(); } while (this.nes.cpu.complete());
+            do { this.clockNes(); } while (!this.nes.cpu.complete());
+			do { this.clockNes(); } while (this.nes.cpu.complete());
             drawCount++;
             console.log('Controller State:', (<any>this.nes).controllerState);
 		} else return;
         
 		if (true) {
             //console.log('Debugging')
-			do { this.nes.clock(); } while (!this.nes.ppu.frameComplete);
-			do { this.nes.clock(); } while (!this.nes.cpu.complete());
+			do { this.clockNes(); } while (!this.nes.ppu.frameComplete);
+			do { this.clockNes(); } while (!this.nes.cpu.complete());
 			
 			this.nes.ppu.frameComplete = false;
 		}
@@ -361,8 +369,8 @@ export class NESGameEngine extends GameEngine {
         const step = document.getElementById('step');
         if (step) {
             step.addEventListener('click', () => {
-                do { this.nes.clock(); } while (!this.nes.cpu.complete());
-                do { this.nes.clock(); } while (this.nes.cpu.complete());
+                do { this.clockNes(); } while (!this.nes.cpu.complete());
+                do { this.clockNes(); } while (this.nes.cpu.complete());
                 drawCount++;
             });
         }
@@ -387,6 +395,12 @@ export class NESGameEngine extends GameEngine {
         const weight = on ? positiveWeight : negativeWeight;
         if (el.style.color !== color) el.style.color = color;
         if (el.style.fontWeight !== weight) el.style.fontWeight = weight;
+    }
+
+    private clockNes(): boolean {
+        const sampleReady = this.nes.clock();
+        if (sampleReady) this.audioOut.push(this.nes.audioSample);
+        return sampleReady;
     }
 
     private bindHoldButton(id: string, key: string): void {

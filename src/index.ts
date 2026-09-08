@@ -9,7 +9,6 @@ import { createEmptyGPUBuffer, createGPUBuffer, createProjectionView, initGPU, c
 import { NESGameEngine } from './nes';
 import flower from './rom/flower-watercolor-red.png';
 import no from './rom/red-no-smoke.webp';
-import xbox from './rom/Achievement-mp3-sound.mp3';
 //import rom from './rom/cpu_dummy_reads.nes';
 //import rom from './rom/240pee.nes';
 //import rom from './rom/simple-test-1.nes';
@@ -31,7 +30,6 @@ let adapter: GPUAdapter;
 let device: GPUDevice;
 let context: GPUCanvasContext;
 let gamePad: Gamepad;
-let audioContext: AudioContext;
 let nesEngine: NESGameEngine;
 
 const SOUND_SAMPLE_FREQUENCY = 44100;
@@ -41,25 +39,24 @@ const input: HTMLInputElement = <HTMLInputElement>document.getElementById('file'
 const imageInput: HTMLInputElement = <HTMLInputElement>document.getElementById('imagefile')!
 //const createCamera = require('3d-view-controls')
 
-window.addEventListener('gamepadconnected', async (e: GamepadEvent) => {
+const setAudioStatus = (on: boolean): void => {
+    const status = document.getElementById('audio-status');
+    if (status) status.textContent = on ? 'Audio: on' : 'Audio: click or press a key to enable';
+};
+
+const unlockAudio = (): void => {
+    if (!nesEngine) return;
+    void nesEngine.unlockAudio().then((on) => {
+        if (on) setAudioStatus(true);
+    });
+};
+
+window.addEventListener('gamepadconnected', (e: GamepadEvent) => {
     console.log(e)
     gamePad = e.gamepad;
     console.log('Gamepad:', gamePad);
     if (nesEngine) nesEngine.connectGamepad(gamePad);
-
-    audioContext = new AudioContext();
-    //const osc = audioContext.createOscillator();
-    //osc.type = 'sine';
-    //osc.start();
-    //osc.stop(audioContext.currentTime + 1);
-    //osc.connect(audioContext.destination);
-
-    const audio = await audioContext.decodeAudioData(await (await fetch(xbox)).arrayBuffer());
-    const source = audioContext.createBufferSource();
-    source.buffer = audio;
-    source.connect(audioContext.destination);
-    source.start();
-    source.stop(audioContext.currentTime + audio.duration);
+    unlockAudio();
 })
 
 window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
@@ -69,8 +66,11 @@ window.addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
 
 const preventScrollKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ']);
 
+window.addEventListener('pointerdown', unlockAudio);
+
 window.addEventListener('keydown', e => {
     if (preventScrollKeys.has(e.key)) e.preventDefault();
+    unlockAudio();
     if (!nesEngine || e.repeat) return;
 
     nesEngine.setKeyboardState(e.key, { bHeld: true, bPressed: true, bReleased: false })
@@ -309,7 +309,7 @@ const init = async () => {
     
     webGPURenderer.setup(adapter, device, context, format)
 
-    nesEngine = new NESGameEngine(romData, imageData);
+    nesEngine = new NESGameEngine(romData, imageData, SOUND_SAMPLE_FREQUENCY);
 
     nesEngine.construct(canvas.width, canvas.height, 1, 1)
     nesEngine.start()

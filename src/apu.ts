@@ -46,7 +46,41 @@ export class Apu {
   public noiseVisual: Uint16Array[0] = 0;
   public triangleVisual: Uint16Array[0] = 0;
 
-  constructor() {}
+  private triangleEnable: boolean = false;
+  private triangleHalt: boolean = false;
+  private triangleLinearReload: number = 0;
+  private triangleLinearCounter: number = 0;
+  private triangleLinearReloadFlag: boolean = false;
+  private triangleStep: number = 0;
+  private triangleOutput: number = 0;
+  private triangleSeq: Sequencer = new Sequencer();
+  private triangleLc: LengthCounter = new LengthCounter();
+
+  private static triangleTable: Uint8Array = new Uint8Array([
+    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  ]);
+
+  private hp90a = 0;
+  private hp440a = 0;
+  private lp14ka = 0;
+  private hp90x = 0;
+  private hp90y = 0;
+  private hp440x = 0;
+  private hp440y = 0;
+  private lp14ky = 0;
+
+  constructor() {
+    this.noiseSeq.sequence = 1;
+    this.setOutputSampleRate(44100);
+  }
+
+  setOutputSampleRate(sampleRate: number): void {
+    const rate = sampleRate > 0 ? sampleRate : 44100;
+    this.hp90a = highPassAlpha(rate, 90);
+    this.hp440a = highPassAlpha(rate, 440);
+    this.lp14ka = lowPassAlpha(rate, 14000);
+  }
 
   cpuWrite(address: Uint16Array[0], data: Uint8Array[0]): void {
     switch (address) {
@@ -144,6 +178,20 @@ export class Apu {
         break;
 
       case 0x4008:
+        this.triangleHalt = (data & 0x80) !== 0x00;
+        this.triangleLinearReload = data & 0x7f;
+        break;
+
+      case 0x400a:
+        this.triangleSeq.reload = (this.triangleSeq.reload & 0xff00) | data;
+        break;
+
+      case 0x400b:
+        this.triangleSeq.reload =
+          ((data & 0x07) << 8) | (this.triangleSeq.reload & 0x00ff);
+        this.triangleSeq.timer = this.triangleSeq.reload;
+        this.triangleLc.counter = Apu.lengthTable[(data & 0xf8) >> 3];
+        this.triangleLinearReloadFlag = true;
         break;
 
       case 0x400c:
@@ -208,7 +256,9 @@ export class Apu {
       case 0x4015: // APU STATUS
         this.pulse1Enable = (data & 0x01) !== 0x00;
         this.pulse2Enable = (data & 0x02) !== 0x00;
-        this.noiseEnable = (data & 0x04) !== 0x00;
+        this.triangleEnable = (data & 0x04) !== 0x00;
+        this.noiseEnable = (data & 0x08) !== 0x00;
+        if (!this.triangleEnable) this.triangleLc.counter = 0;
         break;
 
       case 0x400f:
@@ -226,7 +276,8 @@ export class Apu {
     if (address == 0x4015) {
       data |= (this.pulse1Lc.counter > 0) ? 0x01 : 0x00;
       data |= (this.pulse2Lc.counter > 0) ? 0x02 : 0x00;
-      data |= (this.noiseLc.counter > 0) ? 0x04 : 0x00;
+      data |= (this.triangleLc.counter > 0) ? 0x04 : 0x00;
+      data |= (this.noiseLc.counter > 0) ? 0x08 : 0x00;
     }
 
     return data;
@@ -235,6 +286,10 @@ export class Apu {
   clock(): void {
     let bQuarterFrameClock = false;
     let bHalfFrameClock = false;
+
+    if (this.clockCounter % 3 === 0) {
+      this.clockTriangleTimer();
+    }
 
     if (this.clockCounter % 6 == 0) {
       this.frameClockCounter++;
@@ -266,21 +321,23 @@ export class Apu {
         this.pulse1Env.clock(this.pulse1Halt);
         this.pulse2Env.clock(this.pulse2Halt);
         this.noiseEnv.clock(this.noiseHalt);
+        this.clockTriangleLinear();
       }
 
       if (bHalfFrameClock) {
         this.pulse1Lc.clock(this.pulse1Enable, this.pulse1Halt);
         this.pulse2Lc.clock(this.pulse2Enable, this.pulse2Halt);
+        this.triangleLc.clock(this.triangleEnable, this.triangleHalt);
         this.noiseLc.clock(this.noiseEnable, this.noiseHalt);
         this.pulse1Sweep.clock({ target: this.pulse1Seq.reload }, false);
         this.pulse2Sweep.clock({ target: this.pulse2Seq.reload }, true);
       }
 
       this.pulse1Seq.clock(this.pulse1Enable, (s: Uint32Array[0]) => {
-        s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
+        return ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
       });
       this.pulse2Seq.clock(this.pulse2Enable, (s: Uint32Array[0]) => {
-        s = ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
+        return ((s & 0x0001) << 7) | ((s & 0x00fe) >> 1);
       });
 
       if (this.useRawMode) {
@@ -312,19 +369,37 @@ export class Apu {
         )
           this.pulse2Output += (this.pulse2Sample - this.pulse2Output) * 0.5;
         else this.pulse2Output = 0;
+      } else {
+        this.pulse1Sample = this.pulse1Seq.output;
+        this.pulse1Output =
+          this.pulse1Lc.counter > 0 &&
+          this.pulse1Seq.reload >= 8 &&
+          !this.pulse1Sweep.mute
+            ? this.pulse1Sample * this.pulse1Env.output
+            : 0;
+
+        this.pulse2Sample = this.pulse2Seq.output;
+        this.pulse2Output =
+          this.pulse2Lc.counter > 0 &&
+          this.pulse2Seq.reload >= 8 &&
+          !this.pulse2Sweep.mute
+            ? this.pulse2Sample * this.pulse2Env.output
+            : 0;
       }
 
       this.noiseSeq.clock(this.noiseEnable, (s: Uint32Array[0]) => {
-        s = (((s & 0x0001) ^ ((s & 0x0002) >> 1)) << 14) | ((s & 0x7fff) >> 1);
+        return (((s & 0x0001) ^ ((s & 0x0002) >> 1)) << 14) | ((s & 0x7fff) >> 1);
       });
 
-      if (this.noiseLc.counter > 0 && this.noiseSeq.timer >= 8) {
-        this.noiseOutput =
-          this.noiseSeq.output * ((this.noiseEnv.output - 1) / 16.0);
+      if (this.noiseLc.counter > 0) {
+        this.noiseOutput = this.noiseSeq.output * this.noiseEnv.output;
+      } else {
+        this.noiseOutput = 0;
       }
 
       if (!this.pulse1Enable) this.pulse1Output = 0;
       if (!this.pulse2Enable) this.pulse2Output = 0;
+      if (!this.triangleEnable) this.triangleOutput = 0;
       if (!this.noiseEnable) this.noiseOutput = 0;
     }
 
@@ -343,23 +418,101 @@ export class Apu {
       this.noiseEnable && this.noiseEnv.output > 1
         ? this.noiseSeq.reload
         : 2047;
+    this.triangleVisual =
+      this.triangleEnable && this.triangleLinearCounter > 0
+        ? this.triangleSeq.reload
+        : 2047;
 
     this.clockCounter++;
   }
 
-  reset(): void {}
+  reset(): void {
+    this.pulse1Enable = false;
+    this.pulse2Enable = false;
+    this.triangleEnable = false;
+    this.noiseEnable = false;
+    this.pulse1Output = 0;
+    this.pulse2Output = 0;
+    this.triangleOutput = 0;
+    this.noiseOutput = 0;
+    this.clockCounter = 0;
+    this.frameClockCounter = 0;
+    this.noiseSeq.sequence = 1;
+    this.triangleStep = 0;
+    this.triangleLinearCounter = 0;
+    this.triangleLinearReloadFlag = false;
+    this.hp90x = 0;
+    this.hp90y = 0;
+    this.hp440x = 0;
+    this.hp440y = 0;
+    this.lp14ky = 0;
+  }
+
+  mixRaw(): number {
+    const pulse = this.pulse1Output + this.pulse2Output;
+    const tnd = this.triangleOutput / 8227.0 + this.noiseOutput / 12241.0;
+    const pulseOut = pulse > 0 ? 95.88 / (8128.0 / pulse + 100.0) : 0;
+    const tndOut = tnd > 0 ? 159.79 / (1.0 / tnd + 100.0) : 0;
+    return pulseOut + tndOut;
+  }
+
+  filterSample(sample: number): number {
+    this.hp90y = this.hp90a * (this.hp90y + sample - this.hp90x);
+    this.hp90x = sample;
+    this.hp440y = this.hp440a * (this.hp440y + this.hp90y - this.hp440x);
+    this.hp440x = this.hp90y;
+    this.lp14ky += this.lp14ka * (this.hp440y - this.lp14ky);
+    return this.lp14ky;
+  }
 
   getOutputSample(): number {
     if (this.useRawMode) {
       return (this.pulse1Sample - 0.5) * 0.5 + (this.pulse2Sample - 0.5) * 0.5;
+    }
+    return this.filterSample(this.mixRaw());
+  }
+
+  private clockTriangleTimer(): void {
+    this.triangleSeq.timer = (this.triangleSeq.timer - 1) & 0xffff;
+    if (this.triangleSeq.timer === 0xffff) {
+      this.triangleSeq.timer = this.triangleSeq.reload;
+      if (this.triangleLinearCounter > 0 && this.triangleLc.counter > 0) {
+        this.triangleStep = (this.triangleStep + 1) & 31;
+      }
+    }
+
+    if (
+      this.triangleEnable &&
+      this.triangleLinearCounter > 0 &&
+      this.triangleLc.counter > 0 &&
+      this.triangleSeq.reload >= 2
+    ) {
+      this.triangleOutput = Apu.triangleTable[this.triangleStep];
     } else {
-      return (
-        (1.0 * this.pulse1Output - 0.8) * 0.1 +
-        (1.0 * this.pulse2Output - 0.8) * 0.1 +
-        2.0 * (this.noiseOutput - 0.5) * 0.1
-      );
+      this.triangleOutput = 0;
     }
   }
+
+  private clockTriangleLinear(): void {
+    if (this.triangleLinearReloadFlag) {
+      this.triangleLinearCounter = this.triangleLinearReload;
+    } else if (this.triangleLinearCounter > 0) {
+      this.triangleLinearCounter--;
+    }
+    if (!this.triangleHalt) this.triangleLinearReloadFlag = false;
+  }
+}
+
+function highPassAlpha(sampleRate: number, cutoff: number): number {
+  const dt = 1 / sampleRate;
+  const rc = 1 / (2 * Math.PI * cutoff);
+  return rc / (rc + dt);
+}
+
+function lowPassAlpha(sampleRate: number, cutoff: number): number {
+  const dt = 1 / sampleRate;
+  const rc = 1 / (2 * Math.PI * cutoff);
+  return dt / (rc + dt);
 }
 
 class Sequencer {
@@ -371,13 +524,13 @@ class Sequencer {
 
   clock(
     enable: boolean,
-    funcManip: (s: Uint32Array[0]) => void
+    funcManip: (s: Uint32Array[0]) => Uint32Array[0]
   ): Uint8Array[0] {
     if (enable) {
-      this.timer--;
+      this.timer = (this.timer - 1) & 0xffff;
       if (this.timer === 0xffff) {
         this.timer = this.reload;
-        funcManip(this.sequence);
+        this.sequence = funcManip(this.sequence);
         this.output = this.sequence & 0x00000001;
       }
     }
