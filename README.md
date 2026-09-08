@@ -6,7 +6,7 @@ A Nintendo Entertainment System (NES) emulator written in TypeScript, running in
 
 - **6502 CPU** with disassembler and debug UI (registers, flags, PC, cycle count)
 - **PPU** for frame rendering and palette inspection
-- **APU** audio support (sample rate 44.1 kHz)
+- **APU** audio through Web Audio (pulse, triangle, and noise at 44.1 kHz, or the browser's `AudioContext` rate)
 - **iNES cartridge loading** (file picker or bundled ROM)
 - **Mapper support**: 0, 1, 2, 3, 4, and 66
 - **Input**: keyboard, on-screen buttons, and Gamepad API
@@ -36,13 +36,15 @@ npm install
 | `npm run validate:mmc3` | Headless MMC3 / NMI checks |
 | `npm run validate:controller` | Headless controller mapping and $4016 strobe checks |
 | `npm run validate:nestest` | Headless nestest.nes official opcode log and $02/$03 checks |
+| `npm run validate:apu` | Headless APU pulse / triangle / noise sample and bus mix checks |
 
 ## Usage
 
 1. Run `npm run cert:generate` once (if `certs/*.pem` are missing), then `npm run serve` and open the app in a WebGPU-capable browser. The first visit to a self-signed host will show a browser warning; continue past it for local development.
 2. Remote access (same cert SANs): `https://73.204.187.74:8082` or `https://[2601:587:100:9770:5c6d:48fc:8d21:66fe]:8082`.
 3. Load a `.nes` ROM with **Choose ROM**, or use the ROM imported in `src/index.ts`.
-4. Play with keyboard, on-screen buttons, or a connected gamepad.
+4. Click the page, press a key, or connect a gamepad to unlock audio (browsers block sound until a user gesture).
+5. Play with keyboard, on-screen buttons, or a connected gamepad.
 
 ### Controls
 
@@ -72,6 +74,7 @@ src/
   cpu.ts          # 6502 CPU
   ppu.ts          # Picture Processing Unit
   apu.ts          # Audio Processing Unit
+  audio.ts        # Web Audio output (AudioWorklet, ScriptProcessor fallback)
   bus.ts          # System bus
   cartridge.ts    # iNES ROM loading
   nes.ts          # Emulator game loop & UI
@@ -86,6 +89,7 @@ src/
 - TypeScript
 - Webpack 5 + webpack-dev-server
 - WebGPU (`@webgpu/types`)
+- Web Audio API
 - gl-matrix
 
 ## Performance notes
@@ -94,15 +98,15 @@ Firefox WebGPU is stricter about reclaiming GPU objects than Chromium. The frame
 
 The display path now:
 
-- Targets **60 FPS** (one NES frame per 1/60 s, with a short catch-up cap)
+- Targets **NTSC rate** (one NES frame per 1/60.098814 s, with a short catch-up cap)
 - Uploads the native 256×240 PPU framebuffer and scales 2× on the GPU with nearest-neighbor sampling
 - Reuses one screen texture, pipeline, bind group, and vertex buffer
 - Uploads pixels with `writeTexture` (256-byte row alignment) instead of `createImageBitmap`
 - Skips unused per-pixel GPU buffer and pipeline allocations in the layer renderer
-- Skips unused APU Fourier sample synthesis (audio output is not mixed yet)
+- Mixes APU pulse, triangle, and noise with the NES analog curve, averages each output sample, and applies the 90 Hz / 440 Hz / 14 kHz playback filters (Fourier synthesis stays off)
 
 CPU flags, registers, and FPS stay on the HTML debug table. The old software overlay (pattern tables, nametable, `drawCpu`) is not redrawn every frame because that blit could not sustain 60 Hz.
 
 ## Notes
 
-This is a work-in-progress emulator. Accuracy and game compatibility vary by mapper and title. Bundled ROMs under `src/rom/` are for local development; distribute only ROMs you have rights to use.
+This is a work-in-progress emulator. Accuracy and game compatibility vary by mapper and title. APU DMC / PCM is not implemented. Bundled ROMs under `src/rom/` are for local development; distribute only ROMs you have rights to use.

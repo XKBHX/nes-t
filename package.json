@@ -13,7 +13,8 @@
     "cert:generate": "bash scripts/generate-dev-cert.sh",
     "validate:mmc3": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-mmc3.ts",
     "validate:controller": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-controller.ts",
-    "validate:nestest": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-nestest.ts"
+    "validate:nestest": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-nestest.ts",
+    "validate:apu": "ts-node --compiler-options '{\"module\":\"commonjs\",\"baseUrl\":\"./src\",\"esModuleInterop\":true,\"strict\":true}' scripts/validate-apu.ts"
   },
   "author": "",
   "devDependencies": {
