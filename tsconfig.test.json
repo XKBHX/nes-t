@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": "./src",
+    "rootDir": ".",
+    "noImplicitAny": true,
+    "module": "commonjs",
+    "target": "es2017",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["es2017", "dom"],
+    "types": ["node", "@webgpu/types"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "index.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

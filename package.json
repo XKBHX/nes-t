@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/run-unit-tests.cjs",
+    "test:watch": "node scripts/run-unit-tests.cjs --watch",
+    "validate": "npm run validate:controller && npm run validate:mmc3 && npm run validate:apu",
     "build": "webpack --mode=production --config-node-env=production",
     "build:dev": "webpack --mode=development",
     "build:prod": "webpack --mode=production --config-node-env=production",
