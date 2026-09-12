@@ -17,15 +17,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
 
       - name: Install dependencies
-        run: |
-          # Node 22's bundled npm 10.9.x can hang, then crash with
-          # "Exit handler never called!" on a cold cache / large lockfile.
-          npm install --global npm@11
-          npm ci --no-audit --no-fund --maxsockets 1000
+        run: npm ci --no-audit --no-fund --maxsockets 1000
 
       - name: Run unit tests
         run: npm test
