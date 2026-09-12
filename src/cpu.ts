@@ -299,21 +299,47 @@ export const ABS: OPERATION = (c) => {
     return new Uint8Array(1);
 }
 
+/** Indexed writes/RMW always dummy-read the uncorrected address (cpu_dummy_reads). */
+function indexedDummyAlways(opcode: number): boolean {
+	switch (opcode) {
+		case 0x13: case 0x33: case 0x53: case 0x73: case 0x91: case 0x93: case 0xd3: case 0xf3:
+		case 0x1b: case 0x3b: case 0x5b: case 0x7b: case 0x99: case 0x9b: case 0xdb: case 0xfb:
+		case 0x1e: case 0x3e: case 0x5e: case 0x7e: case 0x9c: case 0x9d: case 0x9e: case 0xde: case 0xfe:
+		case 0x1f: case 0x3f: case 0x5f: case 0x7f: case 0x9f: case 0xdf: case 0xff:
+			return true;
+		default:
+			return false;
+	}
+}
+
+function applyIndexedAddress(c: Cpu, lo: number, hi: number, index: number): Uint8Array {
+	const dummy = (hi << 8) | ((lo + index) & 0xff);
+	c.addressAbsolute[0] = ((hi << 8) + lo + index) & 0xffff;
+	const pageCrossed = (c.addressAbsolute[0] & 0xff00) !== (hi << 8);
+	if (pageCrossed || indexedDummyAlways(c.opcode[0])) {
+		c.read(dummy);
+	}
+	const result = new Uint8Array(1);
+	if (pageCrossed) result[0] = 0x01;
+	return result;
+}
+
+/** RMW dummy-writes the original value before the modified value (cpu_dummy_writes). */
+function writeModified(c: Cpu, value: number): void {
+	if (lookup[c.opcode[0]].addressMode === IMP) {
+		c.a[0] = value & 0xff;
+		return;
+	}
+	c.write(c.addressAbsolute[0], c.fetched[0]);
+	c.write(c.addressAbsolute[0], value & 0xff);
+}
+
 export const ABX: OPERATION = (c) => {
     const lo = c.read(c.pc[0]);
 	c.pc[0]++;
 	const hi = c.read(c.pc[0]);
 	c.pc[0]++;
-
-	c.addressAbsolute[0] = (hi << 8) | lo;
-	c.addressAbsolute[0] += c.x[0];
-
-	const result = new Uint8Array(1);
-	
-	if ((c.addressAbsolute[0] & 0xFF00) !== (hi << 8))
-		result[0] = 0x01;
-
-	return result;
+	return applyIndexedAddress(c, lo, hi, c.x[0]);
 }
 
 export const ABY: OPERATION = (c) => {
@@ -321,16 +347,7 @@ export const ABY: OPERATION = (c) => {
 	c.pc[0]++;
 	const hi = c.read(c.pc[0]);
 	c.pc[0]++;
-
-	c.addressAbsolute[0] = (hi << 8) | lo;
-	c.addressAbsolute[0] += c.y[0];
-
-	const result = new Uint8Array(1);
-	
-	if ((c.addressAbsolute[0] & 0xFF00) !== (hi << 8))
-		result[0] = 0x01;
-
-	return result;
+	return applyIndexedAddress(c, lo, hi, c.y[0]);
 }
 
 export const IND: OPERATION = (c) => {
@@ -369,16 +386,7 @@ export const IZY: OPERATION = (c) => {
 
 	const lo = c.read(t & 0x00FF);
 	const hi = c.read((t + 1) & 0x00FF);
-
-	c.addressAbsolute[0] = (hi << 8) | lo;
-	c.addressAbsolute[0] += c.y[0];
-	
-	const result = new Uint8Array(1);
-	
-	if ((c.addressAbsolute[0] & 0xFF00) != (hi << 8))
-		result[0] = 0x01;
-
-	return result;
+	return applyIndexedAddress(c, lo, hi, c.y[0]);
 }
 
 // Oc.pcodes (private)
@@ -413,10 +421,7 @@ export const ASL: OPERATION = (c) => {
 	c.setFlag(CPU_FLAG.C, (c.temp[0] & 0xFF00) > 0);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x00);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x80) !== 0x00);
-	if (lookup[c.opcode[0]].addressMode === IMP)
-		c.a[0] = c.temp[0] & 0xFF;
-	else
-		c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 
     return  new Uint8Array(1);
 };
@@ -606,7 +611,7 @@ export const CPY: OPERATION = (c) => {
 export const DEC: OPERATION = (c) => {
     c.fetch();
 	c.temp[0] = c.fetched[0] - 1;
-	c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x0000);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x0080) !== 0x0000);
 	
@@ -640,7 +645,7 @@ export const EOR: OPERATION = (c) => {
 export const INC: OPERATION = (c) => {
     c.fetch();
 	c.temp[0] = c.fetched[0] + 1;
-	c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x0000);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x0080) !== 0x0000);
 	
@@ -717,10 +722,7 @@ export const LSR: OPERATION = (c) => {
 	c.temp[0] = c.fetched[0] >> 1;	
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x0000);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x0080) !== 0x0000);
-	if (lookup[c.opcode[0]].addressMode === IMP)
-		c.a[0] = c.temp[0] & 0xFF;
-	else
-		c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 	
     return new Uint8Array(1);
 };
@@ -787,10 +789,7 @@ export const ROL: OPERATION = (c) => {
 	c.setFlag(CPU_FLAG.C, (c.temp[0] & 0xFF00) !== 0x0000);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x0000);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x0080) !== 0x0000);
-	if (lookup[c.opcode[0]].addressMode === IMP)
-		c.a[0] = c.temp[0] & 0xFF;
-	else
-		c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 	
     return new Uint8Array(1);
 };
@@ -800,10 +799,7 @@ export const ROR: OPERATION = (c) => {
 	c.setFlag(CPU_FLAG.C, (c.fetched[0] & 0x01) !== 0x00);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00FF) === 0x00);
 	c.setFlag(CPU_FLAG.N, (c.temp[0] & 0x0080) !== 0x00);
-	if (lookup[c.opcode[0]].addressMode === IMP)
-		c.a[0] = c.temp[0] & 0x00FF;
-	else
-		c.write(c.addressAbsolute[0], c.temp[0] & 0x00FF);
+	writeModified(c, c.temp[0]);
 	
     return new Uint8Array(1);
 };
@@ -935,7 +931,7 @@ export const SAX: OPERATION = (c) => {
 export const DCP: OPERATION = (c) => {
     c.fetch();
 	const value = (c.fetched[0] - 1) & 0xff;
-	c.write(c.addressAbsolute[0], value);
+	writeModified(c, value);
 	c.temp[0] = c.a[0] - value;
 	c.setFlag(CPU_FLAG.C, c.a[0] >= value);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00ff) === 0x0000);
@@ -945,7 +941,7 @@ export const DCP: OPERATION = (c) => {
 export const ISB: OPERATION = (c) => {
     c.fetch();
 	const value = (c.fetched[0] + 1) & 0xff;
-	c.write(c.addressAbsolute[0], value);
+	writeModified(c, value);
 	const inverted = value ^ 0x00ff;
 	c.temp[0] = c.a[0] + inverted + c.getFlag(CPU_FLAG.C);
 	c.setFlag(CPU_FLAG.C, (c.temp[0] & 0xff00) !== 0);
@@ -959,7 +955,7 @@ export const SLO: OPERATION = (c) => {
     c.fetch();
 	c.temp[0] = c.fetched[0] << 1;
 	c.setFlag(CPU_FLAG.C, (c.temp[0] & 0xff00) > 0);
-	c.write(c.addressAbsolute[0], c.temp[0] & 0x00ff);
+	writeModified(c, c.temp[0]);
 	c.a[0] = c.a[0] | (c.temp[0] & 0xff);
 	c.setFlag(CPU_FLAG.Z, c.a[0] === 0x00);
 	c.setFlag(CPU_FLAG.N, (c.a[0] & 0x80) !== 0x00);
@@ -969,7 +965,7 @@ export const RLA: OPERATION = (c) => {
     c.fetch();
 	c.temp[0] = (c.fetched[0] << 1) | c.getFlag(CPU_FLAG.C);
 	c.setFlag(CPU_FLAG.C, (c.temp[0] & 0xff00) !== 0x0000);
-	c.write(c.addressAbsolute[0], c.temp[0] & 0x00ff);
+	writeModified(c, c.temp[0]);
 	c.a[0] = c.a[0] & (c.temp[0] & 0xff);
 	c.setFlag(CPU_FLAG.Z, c.a[0] === 0x00);
 	c.setFlag(CPU_FLAG.N, !!(c.a[0] & 0x80));
@@ -979,7 +975,7 @@ export const SRE: OPERATION = (c) => {
     c.fetch();
 	c.setFlag(CPU_FLAG.C, (c.fetched[0] & 0x0001) !== 0x0000);
 	c.temp[0] = c.fetched[0] >> 1;
-	c.write(c.addressAbsolute[0], c.temp[0] & 0x00ff);
+	writeModified(c, c.temp[0]);
 	c.a[0] = c.a[0] ^ (c.temp[0] & 0xff);
 	c.setFlag(CPU_FLAG.Z, c.a[0] === 0x00);
 	c.setFlag(CPU_FLAG.N, (c.a[0] & 0x80) !== 0x00);
@@ -989,7 +985,7 @@ export const RRA: OPERATION = (c) => {
     c.fetch();
 	const rotated = (c.getFlag(CPU_FLAG.C) << 7) | (c.fetched[0] >> 1);
 	c.setFlag(CPU_FLAG.C, (c.fetched[0] & 0x01) !== 0x00);
-	c.write(c.addressAbsolute[0], rotated & 0xff);
+	writeModified(c, rotated);
 	c.temp[0] = c.a[0] + (rotated & 0xff) + c.getFlag(CPU_FLAG.C);
 	c.setFlag(CPU_FLAG.C, c.temp[0] > 255);
 	c.setFlag(CPU_FLAG.Z, (c.temp[0] & 0x00ff) === 0);

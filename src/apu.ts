@@ -258,7 +258,10 @@ export class Apu {
         this.pulse2Enable = (data & 0x02) !== 0x00;
         this.triangleEnable = (data & 0x04) !== 0x00;
         this.noiseEnable = (data & 0x08) !== 0x00;
+        if (!this.pulse1Enable) this.pulse1Lc.counter = 0;
+        if (!this.pulse2Enable) this.pulse2Lc.counter = 0;
         if (!this.triangleEnable) this.triangleLc.counter = 0;
+        if (!this.noiseEnable) this.noiseLc.counter = 0;
         break;
 
       case 0x400f:
@@ -431,6 +434,10 @@ export class Apu {
     this.pulse2Enable = false;
     this.triangleEnable = false;
     this.noiseEnable = false;
+    this.pulse1Lc.counter = 0;
+    this.pulse2Lc.counter = 0;
+    this.triangleLc.counter = 0;
+    this.noiseLc.counter = 0;
     this.pulse1Output = 0;
     this.pulse2Output = 0;
     this.triangleOutput = 0;

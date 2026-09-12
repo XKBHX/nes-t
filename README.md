@@ -28,11 +28,14 @@ npm install
 
 | Command | Description |
 | --- | --- |
+| `npm test` | Run unit tests once (Node.js test runner) |
+| `npm run test:watch` | Re-run unit tests when files change |
 | `npm run serve` | Start webpack-dev-server at `https://localhost:8082` |
 | `npm run cert:generate` | Write a self-signed cert covering localhost and the configured public IPs |
 | `npm run build` | Production bundle to `dist/` |
 | `npm run build:dev` | Development build |
 | `npm run watch` | Rebuild on file changes |
+| `npm run validate` | Headless checks that do not require committed ROMs (controller, MMC3, APU) |
 | `npm run validate:mmc3` | Headless MMC3 / NMI checks |
 | `npm run validate:controller` | Headless controller mapping and $4016 strobe checks |
 | `npm run validate:nestest` | Headless nestest.nes official opcode log and $02/$03 checks |
@@ -67,6 +70,22 @@ On macOS, Chrome may also fail to expose an Xbox pad over USB (it uses a separat
 
 When emulation is paused, **step** advances one CPU instruction.
 
+## Testing
+
+Unit tests live in `test/` and cover the CPU, PPU, APU, bus, iNES cartridge loader, mappers 0/1/2/3/4/66, and controller mapping. They use Node's built-in test runner plus `ts-node`, and they do not need a browser or WebGPU.
+
+Accuracy tests in `test/emu-*.test.ts` follow the component list on [NESdev Emulator tests](https://www.nesdev.org/wiki/Emulator_tests): official/unofficial CPU instructions (`instr_test-v5` / nestest), `branch_timing_tests`, `cpu_interrupts_v2`, `cpu_reset`, `cpu_dummy_reads`, `cpu_dummy_writes`, blargg PPU VRAM/palette/OAM/`ppu_read_buffer`/`ppu_vbl_nmi`, and blargg APU length counters / mixer / reset.
+
+```bash
+npm test
+```
+
+If `rom/nestest.nes` is present, `test/emu-roms.test.ts` also runs kevtris nestest (start at `$C000`, compare `scripts/nestest.log`, then `$02` / `$03`). GitHub Actions does not ship that ROM, so that case is skipped in CI.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `npm test` plus `validate:controller`, `validate:mmc3`, and `validate:apu` on push and pull request. `validate:mmc3` skips its Super Mario Bros. 3 smoke test when that ROM is not present. The webpack production build is not part of CI because it imports local assets from gitignored `src/rom/`.
+
+`validate:nestest` is the same nestest automation as a standalone script.
+
 ## Project layout
 
 ```
@@ -82,6 +101,8 @@ src/
   mapper/         # Cartridge mappers (000, 001, 002, 003, 004, 066)
   graphics/       # WebGPU renderer, sprites, input helpers
   index.ts        # App entry point
+test/             # Unit tests
+.github/workflows/ci.yml
 ```
 
 ## Tech stack
